@@ -1,0 +1,42 @@
+---
+title: "升级离线正式环境"
+description: "升级 Sealos 离线正式环境，包含 sealos.env 配置、VG 处理和离线组件导入流程。"
+---
+
+本文介绍离线正式环境升级时的配置调整、磁盘 VG 处理和离线组件导入步骤。
+
+```bash
+vim sealos.env
+```
+
+```bash
+SEALOS_V2_OPENEBS_STORAGE="/data/openebs"
+SEALOS_V2_OPENEBS_VGNAME="vg_k8s" #生产环境需要这个参数
+SEALOS_V2_NETWORK_OFFLINE="false"
+SEALOS_V2_USE_DNSMASQ="false"
+SEALOS_V2_NGINX_LOCATION="/data/nginx"
+SEALOS_V2_FEATURE="gitea_template"
+```
+
+```bash
+cp sealos.env ~/.sealos/cloud/sealos.env
+```
+
+#### VG 处理
+
+1. master 节点保留一块盘给data 不需要格式化以及分盘 只要lsblk可以识别到即可。执行脚本 (需要修改对应的lsblk识别到的磁盘名称) **master的data需要比较大，镜像仓库使用**
+
+2. node 节点需要保留两块盘 一块给data  一块给pvc 
+
+   [cloud-3-fdisk.sh](/docs/self-hosting/files/cloud-3-fdisk.sh)
+
+#### 离线环境
+
+[offline-tools.sh](/docs/self-hosting/files/offline-tools.sh)
+
+```bash
+cp offline-tools.sh scripts/tools.sh
+sealos run sealos-offline.tar
+sealos run dnsmasq.tar
+sealos run sealos-dnsmasq.tar
+```

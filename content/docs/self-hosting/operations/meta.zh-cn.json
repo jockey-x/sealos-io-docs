@@ -1,0 +1,9 @@
+{
+    "title": "升级运维",
+    "pages": [
+        "upgrade-offline-production",
+        "upgrade-devbox-nodes",
+        "devbox-storage-configuration",
+        "object-storage-deploy-upgrade"
+    ]
+}

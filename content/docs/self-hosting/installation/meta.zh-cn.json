@@ -1,0 +1,10 @@
+{
+    "title": "安装部署",
+    "pages": [
+        "quick-install",
+        "disk-partition-guide",
+        "certificate-import",
+        "multi-availability-zone-deployment"
+    ],
+    "defaultOpen": true
+}

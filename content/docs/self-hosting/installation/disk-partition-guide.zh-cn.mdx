@@ -1,0 +1,102 @@
+---
+title: "安装前磁盘分区指南"
+description: "根据 Sealos 私有云集群的存储配置规划 master 与 node 节点磁盘分区，包含标准化安装和单块数据盘场景。"
+---
+
+根据集群的存储配置，选择适合当前集群的分区方式。
+
+<Callout type="warn">
+磁盘分区和格式化会修改磁盘数据。执行前请确认磁盘设备名正确，并确保目标磁盘没有需要保留的数据。
+</Callout>
+
+### 一、标准化安装
+
+| 角色     | 系统盘     | 数据盘      |
+| ------ | ------- | -------- |
+| master | 1（500G） | 1（1T）    |
+| node   | 1（500G） | 2（1T+2T） |
+
+#### 1.1 master 节点
+
+先查看磁盘设备名
+
+```text
+lsblk
+```
+
+假设数据盘名称为 `/dev/nvme1n1`，这里的示例是一块空数据盘，建议不要直接对有数据的盘进行操作，除非已经确认数据可以被擦除。
+
+```text
+NAME        SIZE TYPE MOUNTPOINT
+nvme0n1     500G disk
+├─nvme0n1p1 512M part /boot
+└─nvme0n1p2 500G part /
+nvme1n1       1T disk
+```
+
+依次执行以下命令：
+
+```bash
+pvcreate /dev/nvme1n1
+vgcreate vg_data /dev/nvme1n1
+lvcreate -l 100%FREE -n lv_data vg_data
+vgs vg_data
+mkfs.ext4 /dev/vg_data/lv_data
+mkdir -p /data
+mount /dev/vg_data/lv_data /data
+echo "/dev/vg_data/lv_data /data ext4 defaults,nofail 0 2" >> /etc/fstab
+```
+
+执行后 master 节点的分区就做好了。
+
+#### 1.2 node 节点
+
+执行 `lsblk` 命令查看磁盘设备名，示例如下：
+
+```text
+NAME        SIZE TYPE MOUNTPOINT
+nvme0n1     500G disk
+├─nvme0n1p1 512M part /boot
+└─nvme0n1p2 500G part /
+nvme1n1       1T disk
+nvme2n1       2T disk
+```
+
+node 节点的 `/data` 数据盘按照上述 master 节点相同的命令操作，注意磁盘设备名要填写node 节点实际的设备名。
+
+node 节点预留给 `pvc` 的数据盘和上述不同，需要将  vg  名称 修改为 vg_k8s ，磁盘设备名填写实际的设备名，不需要创建 lv，命令如下：
+
+```bash
+lsblk
+pvcreate /dev/nvme2n1
+vgcreate vg_k8s /dev/nvme2n1
+```
+
+### 二、node 节点单块数据盘
+
+| 角色     | 系统盘     | 数据盘   |
+| ------ | ------- | ----- |
+| master | 1（500G） | 1（1T） |
+| node   | 1（500G） | 1（1T） |
+
+#### 2.1 master 节点
+
+请参照标准化安装的 master 节点部分。
+
+#### 2.2 node 节点
+
+node 节点如果只有1块数据盘，就需要分别给 `/data` 和 `pvc` 分配空间，命令如下，执行时请替换成实际的磁盘设备名：
+
+```bash
+lsblk
+pvcreate /dev/nvme1n1
+vgcreate vg_k8s /dev/nvme1n1
+lvcreate -L 300G -n lv_data vg_k8s
+vgs vg_k8s
+mkfs.ext4 /dev/vg_k8s/lv_data
+mkdir -p /data
+mount /dev/vg_k8s/lv_data /data
+echo "/dev/vg_k8s/lv_data /data ext4 defaults,nofail 0 2" >> /etc/fstab
+```
+
+注：分给 `/data` 的空间可按照实际情况分配，假设是一块 500G 的磁盘，建议分配 200G 给 `lv_data`。

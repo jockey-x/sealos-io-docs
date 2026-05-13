@@ -1,0 +1,9 @@
+{
+    "title": "操作手册",
+    "pages": [
+        "user-operation-guide",
+        "admin-image-proxy-guide",
+        "admin-image-sync-guide",
+        "image-service-guide"
+    ]
+}

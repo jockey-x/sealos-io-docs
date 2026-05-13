@@ -41,8 +41,7 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const config = {
-  // Removed 'output: standalone' to enable static generation for docs pages
-  // while maintaining server-side functionality for other pages
+  output: 'standalone',
   reactStrictMode: true,
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   // Enable SWC minification

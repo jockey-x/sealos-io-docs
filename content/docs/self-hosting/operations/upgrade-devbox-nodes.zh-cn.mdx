@@ -1,0 +1,33 @@
+---
+title: "升级 DevBox 节点"
+description: "在 master 与 DevBox 节点上升级 DevBox 缓存镜像和 worker，并在 Admin 中导入节点 Excel 配置。"
+---
+
+### 1. 在 master 上执行
+
+```bash
+sealos run devbox-cache-v1-cache-amd64.tar
+sealos run devbox-cache-v1-cuda-cache-amd64.tar
+sealos run devbox-cache-v1-arm64-cache-arm64.tar #这个是arm64架构才需要
+```
+
+### 2. 在每个 devbox 节点上执行
+
+```bash
+## /var/lib/sealos/data/default/rootfs/devbox-v1/devbox-worker-start.sh
+cd /var/lib/sealos/data/default/rootfs/devbox-v1/ 
+## 如果GPU需要做应用一般需要参数为false 如果需要独占则为true
+bash devbox-worker-start.sh false
+```
+
+### 3. 在admin导入Excel,Excel 在离线包的etc目录存放
+
+![升级 DevBox 节点](../images/upgrade-devbox-node.zh-cn.png)
+
+![升级 DevBox 节点](../images/upgrade-devbox-node-1.zh-cn.png)
+
+[devbox-amd.xlsx](/docs/self-hosting/files/devbox-amd.xlsx)
+
+[devbox-amd-cuda.xlsx](/docs/self-hosting/files/devbox-amd-cuda.xlsx)
+
+[devbox-arm.xlsx](/docs/self-hosting/files/devbox-arm.xlsx)

@@ -1,9 +1,13 @@
 import { docs, meta, blog as blogPosts, aiQuickReference } from '@/.source';
 import { createMDXSource } from 'fumadocs-mdx';
 import { loader } from 'fumadocs-core/source';
-import { icons } from 'lucide-react';
+import { Album, type LucideIcon } from 'lucide-react';
 import { createElement } from 'react';
 import { i18n } from '@/lib/i18n';
+
+const docIcons: Record<string, LucideIcon> = {
+  Album,
+};
 
 export const source = loader({
   i18n,
@@ -14,7 +18,8 @@ export const source = loader({
       return;
     }
 
-    if (icon in icons) return createElement(icons[icon as keyof typeof icons]);
+    const Icon = docIcons[icon];
+    if (Icon) return createElement(Icon);
   },
   source: createMDXSource(docs, meta),
 });

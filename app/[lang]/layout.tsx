@@ -7,14 +7,26 @@ import { generatePageMetadata } from '@/lib/utils/metadata';
 import StructuredDataComponent from '@/components/structured-data';
 import { generateHomepageSchema } from '@/lib/utils/structured-data';
 import { DefaultSearchDialog } from '@/components/docs/Search';
-import { headers } from 'next/headers';
 import { HomepageDarkMode } from './homepage-dark-mode';
-import { isForcedDarkMode } from './utils/is-forced-dark-mode';
 import { AuthFormProvider } from '@/new-components/AuthForm/AuthFormProvider';
 import { AuthForm } from '@/new-components/AuthForm';
 import { HackathonButton } from '@/new-components/HackathonButton';
+import { FORCED_DARK_MODE_PATHS } from './utils/is-forced-dark-mode';
 
 export const metadata = generatePageMetadata();
+
+const forcedDarkModeScript = `
+(() => {
+  const paths = ${JSON.stringify(FORCED_DARK_MODE_PATHS)};
+  const pathname = window.location.pathname;
+  const match = pathname.match(/^\\/(?:[a-z]{2}\\/|[a-z]{2}-[a-z]{2}\\/)?(.*)$/);
+  const normalized = match ? '/' + match[1] : pathname;
+  const shouldBeDark = paths.some(({ path, match: mode }) =>
+    mode === 'full' ? normalized === path : normalized.startsWith(path)
+  );
+  document.documentElement.classList.toggle('dark', shouldBeDark);
+})();
+`;
 
 // Generate static params for all supported languages
 export async function generateStaticParams() {
@@ -33,15 +45,11 @@ export default async function LocaleLayout({
   const htmlLang = params.lang || 'en';
   const homepageSchema = generateHomepageSchema(htmlLang);
 
-  const headersList = await headers();
-  const pathname = headersList.get('x-pathname') || '/';
-  const needsDarkMode = isForcedDarkMode(pathname);
-
-  const htmlClassName = needsDarkMode ? 'font-sans dark' : 'font-sans';
-
   return (
-    <html lang={htmlLang} className={htmlClassName} suppressHydrationWarning>
+    <html lang={htmlLang} className="font-sans" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: forcedDarkModeScript }} />
+
         {/* Favicon and App Icons */}
         <link
           rel="icon"

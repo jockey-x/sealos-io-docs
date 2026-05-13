@@ -1,0 +1,53 @@
+---
+title: "应用商店导入指南"
+description: "开启 gitea_template 后，将应用模板仓库导入 Gitea，并在管理中心刷新应用商店模板。"
+---
+
+### 前置条件
+
+集群部署前需要配置 `sealos.env` 中的 `SEALOS_V2_FEATURE` 参数，开启 `gitea_template`。
+
+![应用商店导入指南](../images/app-store-import-5.zh-cn.png)
+
+### 导入模板
+
+1. 安装完成后 Sealos 主页会有 Gitea 应用。
+
+![应用商店导入指南](../images/app-store-import-7.zh-cn.png)
+
+* 打开主页的 Gitea 应用，第一次打开需要创建 admin 账号，用户名填写 `admin`。
+
+![应用商店导入指南](../images/app-store-import-4.zh-cn.png)
+
+* 进入后创建一个名为 `templates` 的代码仓库。
+
+![应用商店导入指南](../images/app-store-import-6.zh-cn.png)
+
+![应用商店导入指南](../images/app-store-import-2.zh-cn.png)
+
+* 将准备好的 templates 代码 push 到 Gitea 仓库，`<domain>` 替换为实际的地址，执行下面的命令：
+
+```bash
+git clone templates.bundle templates -b main
+cd templates/
+git remote set-url origin http://gitea.<domain>/admin/templates.git
+git push origin main
+```
+
+* 执行成功后返回 Sealos 主页，打开应用商店，等待加载模板即可。
+
+![应用商店导入指南](../images/app-store-import-3.zh-cn.png)
+
+![应用商店导入指南](../images/app-store-import-1.zh-cn.png)
+
+### 更新模板
+
+后续如果模板仓库有更新需要更新应用商店时，点击进入 Sealos 主页的 `管理中心` 应用，选择 `模板与应用` 下的 `应用商店管理`
+
+![应用商店导入指南](../images/app-store-import.zh-cn.png)
+
+其中分为 **默认刷新** 和 **自定义地址刷新：**
+
+* **默认刷新：**使用系统配置的默认地址刷新应用商店模板，默认为 `http://gitea.<domain>/admin/templates.git`
+
+* **自定义地址刷新：**输入自定义模板地址进行刷新

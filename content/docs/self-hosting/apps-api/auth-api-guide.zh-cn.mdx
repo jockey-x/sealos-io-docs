@@ -1,0 +1,74 @@
+---
+title: "Sealos Auth API 引导"
+description: "使用账号密码获取 Global Token，并换取 Region Token、App Token 和 kubeconfig。"
+---
+
+### Step 1: 账号密码登录，获取 Global Token
+
+请求：
+
+```bash
+curl -s -X POST 'https://<sealos-domain>/api/auth/password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "user": "admin",
+    "password": "8f4c75cexxxxxxxxxxxxxxxxefa675df"
+  }'
+
+```
+
+响应：
+
+```json
+{
+  "code": 200,
+  "message": "Successfully",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyVWlkIjoiZDI4ZDZjODQtOTk0My00NjU1LTg1ZTgtYTg5MDhjODg2MjMyIiwidXNlcklkIjoiYWRtaW4iLCJpYXQiOjE3NzM5ODY5OTAsImV4cCI6MTc3Mzk4NzA1MH0.uzrTVQ8SizKtRPclTlFBgsVBY9eOEdT3Sf1clt0TCLc",
+    "needInit": false
+  }
+}
+```
+
+0326 更新
+
+Body 
+
+user 字段没有字符限制
+password
+
+      1\. 长度至少 8 个字符
+
+      2\. 不能全是空白字符，必须至少包含一个非空白字符
+
+用户未注册情况，支持自动注册用户、并初始化可用区信息
+
+### Step 2: 用 Global Token 换取 Region Token (含 kubeconfig)
+
+Authorization header 直接放 token，不需要 "Bearer " 前缀
+
+请求：
+
+```bash
+curl -s -X POST 'https://<sealos-domain>/api/auth/regionToken' \
+  -H 'Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyVWlkIjoiZDI4ZDZjODQtOTk0My00NjU1LTg1ZTgtYTg5MDhjODg2MjMyIiwidXNlcklkIjoiYWRtaW4iLCJpYXQiOjE3NzM5ODY5OTAsImV4cCI6MTc3Mzk4NzA1MH0.uzrTVQ8SizKtRPclTlFBgsVBY9eOEdT3Sf1clt0TCLc'
+
+```
+
+响应：
+
+```json
+{
+  "code": 200,
+  "message": "Successfully",
+  "data": {
+    "kubeconfig": "apiVersion: v1\nclusters:\n- cluster:\n    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM2VENDQWRHZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQ0FYRFRJMk1ETXdOVEUwTkRReE1Gb1lEekl4TWpZd01qQTVNVFEwTkRFd1dqQVZNUk13RVFZRApWUVFERXdwcmRXSmxjbTVsZEdWek1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBCjlsVzVwYWxoL2V0RC96a2NvT2p2c3hUSTZiQ3EvN1FtY0RaZ01IL2pzN3U5VjFPaGZ3ZDV3R3RETkpGV0JLN1UKaFB0aHFkYnhYUHRIeFh2dm9PRWJIUnFNblF0bUt2REhSb2JURkJiSU1hRWNRUnNDenI3b29yUlJTclNOTVM5dwphYlEwbGR2c2xDVVZDbUJaWUlBeC9DdTdmdEhRWnRub1hzK01FRFhpVGFmQldoVTZTMHBlTHJzTnI1S2UzV0pUClJBOG0wSlpVNlVLZnlzMFNxcVMyemVqc0dMU3p4QTlpeTR3UlQ0czgvclBmL0F1T1hGY1NzMDFvdVBpL3NxWWMKUTIxM2RCbGtOOTFyMW1DYlhUeVZMTlZ1Z3dMWUJRdmgxSThrM1QydFZIYit3dHNCeVZncklxaS82TUhSWEtiQwpxekpmQnYxb2x0VXNHSHdHek80ckV3SURBUUFCbzBJd1FEQU9CZ05WSFE4QkFmOEVCQU1DQXFRd0R3WURWUjBUCkFRSC9CQVV3QXdFQi96QWRCZ05WSFE0RUZnUVUxVmRtYjhaL2hDZjdmU2pQRTRUT0RBS3VoYVV3RFFZSktvWkkKaHZjTkFRRUxCUUFEZ2dFQkFGeXNNUDBYcDVsRGZwdUl5TEw2ZjFSR2Zha0pFazl6VkhUejVOL1E2U3Z1VDlrbwpFTmtrd0VibFhoMXB4YytERTk3S2p5dHJFbTZlcGc0eVJRVDI4bWZ3bjJLREdVVmRIL0dCWjJ0L0ttdHhtdjIzCnFrTUFTdFl6dnlmMjFVbEZZdFBMbVdxaFhWcWlrSWVXQWkrWDkzVlFOTkJCSkE1Wi84UzBKSm04RnBvQ2txSkkKL0dTelRMajlIam1VMEM4ZHF5a044aU1Yekl3ZGVWYU1VcS9IdGUrYWMyaGxjVStBZHdBcFhzdzBwaUk3ZFdSagpJRXJCNXA4VnF5bEsybTlOZ1g4Y0lYbllVSFJaUEtVRzRSb0xhcXFxWGY4a01UR3VZQ3I5RUZ5cGVPOVZEaExVCmJrRGN3OENKT3hmNGN1MTkyRUJ3eGd4NWVOQ2p3eHNIamRMbUVmQT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=\n    server: https://192.168.10.70.nip.io:6443\n  name: sealos\ncontexts:\n- context:\n    cluster: sealos\n    namespace: ns-admin\n    user: admin\n  name: admin@sealos\ncurrent-context: admin@sealos\nkind: Config\npreferences: {}\nusers:\n- name: admin\n  user:\n    token: eyJhbGciOiJSUzI1NiIsImtpZCI6InhJNHhrVE9NTHVJbDk1WVg5WGRhR2Z6Sy1LZ1hldXdLV0R6TnloMXFzdGcifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJ1c2VyLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJzZWFsb3MtdG9rZW4tYWRtaW4tODBmNSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJhZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjBhZTYyZmJmLTM1ZTgtNGE5MS05NDNhLWEyNjE4MzQzNjIwNCIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDp1c2VyLXN5c3RlbTphZG1pbiJ9.GubcyKafDG7vgBCeYbxjEAtoGTMJw0KkCTk1jAWadbIBjv7wI-QFFJtxHp0g9cWDUxg9sAXQBV-HAkRgs1djsqxg5k9kufkO1oKIyA29HLX75jhrnQiQfpOrHU9ugmuc_QWqLD_Ke1AUEIyS3ClKLGFtfTml15W4z6qCTuzr4O3kKp3pfRvlXPPVCwyP9pCOsM0LEQa0FKYGOuacQZo3KyQZMS8DMZhZhO36ZOFCjPlkuW53ZVKQRlhs2HuhFRRs8YY7FF9vHgHaTK669WvB-6ZI6oZ8vSmKrlEx0a0CeAQ4v13vES_b4XGxuiroDFx6ZXwe01pJKMKwmF1ApAIrVw\n",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyVWlkIjoiZDI4ZDZjODQtOTk0My00NjU1LTg1ZTgtYTg5MDhjODg2MjMyIiwidXNlckNyVWlkIjoiMDIzMTQ0MWMtNDA4OC00YjEyLWE0MmMtMzhmMDY3MjYyNWI4IiwidXNlckNyTmFtZSI6ImFkbWluIiwicmVnaW9uVWlkIjoiMDE1YjQwNjctYzMyMS00N2FjLTk3MzAtMDI2NjA0Yjg0ZTFjIiwidXNlcklkIjoiYWRtaW4iLCJ3b3Jrc3BhY2VJZCI6Im5zLWFkbWluIiwid29ya3NwYWNlVWlkIjoiMzJjZDFhNTUtZTk3Zi00NTFmLTlhYzEtNTNiMjA4YmM3NTExIiwiaWF0IjoxNzczOTg3MDIxLCJleHAiOjE3NzQ1OTE4MjF9.mIiv_6Q2q9sBay09Szq9qVyQZsYFV5lPEsTSwuqqItw",
+    "appToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyVWlkIjoiZDI4ZDZjODQtOTk0My00NjU1LTg1ZTgtYTg5MDhjODg2MjMyIiwidXNlckNyVWlkIjoiMDIzMTQ0MWMtNDA4OC00YjEyLWE0MmMtMzhmMDY3MjYyNWI4IiwidXNlckNyTmFtZSI6ImFkbWluIiwicmVnaW9uVWlkIjoiMDE1YjQwNjctYzMyMS00N2FjLTk3MzAtMDI2NjA0Yjg0ZTFjIiwidXNlcklkIjoiYWRtaW4iLCJ3b3Jrc3BhY2VJZCI6Im5zLWFkbWluIiwid29ya3NwYWNlVWlkIjoiMzJjZDFhNTUtZTk3Zi00NTFmLTlhYzEtNTNiMjA4YmM3NTExIiwiaWF0IjoxNzczOTg3MDIxLCJleHAiOjE3NzQ1OTE4MjF9.CZXxBayEs5edxBQ2en0Y8XapZ_aQttPL7F32r0fKQ3I"
+  }
+}
+```
+
+* `<sealos-domain>` 替换为实际 Sealos 主域名,比如 [192.168.10.70.nip.io](https://template.192.168.10.70.nip.io/)
+
+* 后续接口使用，**URL 编码**之后的 kc ，作为 Authorization 即可（encodeURIComponent）

@@ -1,5 +1,6 @@
 import { generateBlogMetadata } from '@/lib/utils/metadata';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import {
   getCategories,
   getSortedBlogPosts,
@@ -104,7 +105,9 @@ export default async function CategoryPage({
 
       <section className="container">
         <CategoryBar categories={categories} />
-        <TagsBar tags={tags} />
+        <Suspense fallback={null}>
+          <TagsBar tags={tags} />
+        </Suspense>
       </section>
 
       <section className="container mt-10">

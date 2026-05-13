@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { GodRays } from '@/new-components/GodRays';
 import { GradientText } from '@/new-components/GradientText';
 import { RssIcon } from 'lucide-react';
+import { Suspense } from 'react';
 import CategoryBar from './components/CategoryBar';
 import {
   getAllTags,
@@ -92,7 +93,9 @@ export default async function BlogPage({
 
       <section className="container">
         <CategoryBar categories={categories} />
-        <TagsBar tags={tags} />
+        <Suspense fallback={null}>
+          <TagsBar tags={tags} />
+        </Suspense>
       </section>
 
       <section className="container mt-10">

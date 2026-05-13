@@ -61,14 +61,16 @@ export function generateStaticParams() {
 async function loadFont(path: string): Promise<ArrayBuffer> {
   const fontPath = join(process.cwd(), 'fonts', path);
   const fontBuffer = await readFile(fontPath);
-  // Convert Buffer to ArrayBuffer by creating a new ArrayBuffer
+  // Convert Buffer to ArrayBuffer once; Satori keeps a reference while rendering.
   const arrayBuffer = new ArrayBuffer(fontBuffer.length);
   const view = new Uint8Array(arrayBuffer);
   view.set(fontBuffer);
   return arrayBuffer;
 }
 
-async function getFonts(): Promise<SatoriOptions['fonts']> {
+let fontsPromise: Promise<SatoriOptions['fonts']> | undefined;
+
+async function loadFonts(): Promise<SatoriOptions['fonts']> {
   const [regular, bold, han] = await Promise.all([
     loadFont('arial.ttf'),
     loadFont('arial-bold.ttf'),
@@ -94,6 +96,11 @@ async function getFonts(): Promise<SatoriOptions['fonts']> {
       style: 'normal' as const,
     },
   ];
+}
+
+function getFonts(): Promise<SatoriOptions['fonts']> {
+  fontsPromise ??= loadFonts();
+  return fontsPromise;
 }
 
 const extractCategory = (dirname: string) => {

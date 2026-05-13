@@ -1,4 +1,10 @@
 {
     "title": "自托管",
-    "pages": ["install","install-v1", "faq"]
+    "pages": [
+        "installation",
+        "operations",
+        "apps-api",
+        "admin",
+        "reference"
+    ]
 }

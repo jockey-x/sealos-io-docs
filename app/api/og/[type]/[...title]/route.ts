@@ -1,11 +1,15 @@
 import { drawCanvas } from '@/lib/og-canvas';
 import { NextRequest, NextResponse } from 'next/server';
-import { blog } from '@/lib/source';
 import { languagesType } from '@/lib/i18n';
-import { getPageCategory } from '@/lib/utils/blog-utils';
 import sharp from 'sharp';
 
+const getPageCategory = (page: { file?: { dirname?: string } }) => {
+  const match = page.file?.dirname?.match(/\((.*?)\)/);
+  return match ? match[1] : 'uncategorized';
+};
+
 export async function generateStaticParams() {
+  const { blog } = await import('@/lib/source');
   const params = [];
 
   for (const lang of ['en', 'zh-cn'] as languagesType[]) {
@@ -54,6 +58,7 @@ export async function GET(
 
     // Special handling for blog type: use slug to find the actual title
     if (type === 'blog') {
+      const { blog } = await import('@/lib/source');
       // Extract slug and locale from the decoded slug (format: slug.locale)
       const slugParts = decodedSlug.split('.');
       const slug = slugParts[0];

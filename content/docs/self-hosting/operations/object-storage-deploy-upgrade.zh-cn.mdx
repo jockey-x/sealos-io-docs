@@ -1,0 +1,48 @@
+---
+title: "部署和升级对象存储"
+description: "安装 MinIO 对象存储系统组件，部署或升级 objectstorage 应用层组件，并更新相关计费模块。"
+---
+
+本文介绍 Sealos 私有云中对象存储系统组件和应用层组件的部署与升级流程。
+
+1. 安装对象存储系统组件（minio）
+
+   > minio.storage.size指定需要的对象存储大小
+
+   ```bash
+   sealos run sealos-minio-v0.1.0-amd64.tar --env HELM_OPTS='--set minio.storage.size=10Gi"
+   ```
+
+2. 安装/升级 对象存储应用层组件（objectstorage）
+
+   > 需要修改cloudDomain为对应集群域名
+
+   ```bash
+   sealos run objectstorage-cluster-v5.1.2-rc5-amd64.tar --env cloudDomain=192.168.13.147.nip.io --env cloudPort="443"
+   ```
+
+   > （非必选）rc4 版本的desktop 安装对象存储或其他APP需要在 values/desktop-values.yaml中修改desktopConfig.allowedOrigins添加信任对应的app访问地址
+
+   ```text
+   ## 修改desktopConfig.allowedOrigins添加信任对应的app访问地址并覆盖到 cloud配置位置
+   cp values/desktop-values.yaml ~/.sealos/cloud/values/core/desktop-values.yaml
+   ## 从安装日志中查找部署命令
+   cat ~/.sealos/cloud/install.log | grep desktop
+
+   ## 找到如例后执行即可： 
+   sealos run -f sealos-pro.hub:19999/labring/sealos-cloud-desktop-frontend:v5.1.2-rc4
+
+   ```
+
+3. 如需新增对象存储计费工具，需要在计费模块重新更新计费模块
+
+   > cat \~/.sealos/cloud/install.log | grep account-controller
+   >
+   > cat \~/.sealos/cloud/install.log | grep resources-controller
+   >
+   > 上述两个命令查找出来的默认的安装命令重新执行一遍即可，例如如下命令
+
+   ```bash
+   sealos run -f sealos-pro.hub:19999/labring/sealos-cloud-account-controller:v5.1.2-rc5
+   sealos run -f sealos-pro.hub:19999/labring/sealos-cloud-resources-controller:v5.1.2-rc5
+   ```
