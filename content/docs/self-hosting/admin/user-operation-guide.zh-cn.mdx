@@ -1,0 +1,524 @@
+---
+title: "Sealos 操作手册"
+description: "Sealos 应用管理、DevBox、数据库和应用商店的基础操作手册。"
+---
+
+## 简介
+
+Sealos 是一款以 Kubernetes 为内核的云操作系统。它以云原生的方式，抛弃了传统的云计算架构，转向以 Kubernetes 为云内核的新架构，使企业能够像使用个人电脑一样简单地使用云。
+
+用户将可以像使用个人电脑一样在 Kubernetes 上一键安装任意高可用分布式应用，几乎不需要任何专业的交付和运维成本。同时，利用独特的集群镜像能力，用户可将任意分布式应用打包成 OCI 镜像，自由组合各种分布式应用，轻松定制所需的云。通过强大且灵活的应用商店功能，可满足各类用户的多样化需求。
+
+此外，Sealos 还提供 GPU 服务，搭载多种高性能 GPU 加速器，支持不同型号与配置，满足用户专业级的计算需求。用户可按需灵活分配 GPU 资源，可用于深度学习、图形渲染、科学计算等领域。其 GPU 服务具有快速部署、操作简单的优势，能显著加速计算任务，且采用按使用量付费模式，降低成本，让用户无需购买昂贵硬件，即可轻松获取强大的 GPU 计算能力，满足不同场景的高性能计算需求。
+
+## 应用管理
+
+## 1. 快速入门
+
+### 1.1 默认进入新建应用界面
+
+#### 1.1.1 登录进 Sealos
+
+![Sealos 操作文档](../images/user-operation.zh-cn.png)
+
+#### 1.1.2 进入应用管理，新建应用
+
+![Sealos 操作文档](../images/user-operation-1.zh-cn.png)
+
+#### 1.1.3 快速创建默认应用
+
+#### 1.1.4 基础配置
+
+![Sealos 操作文档](../images/user-operation-2.zh-cn.png)
+
+#### 1.1.5 开启访问
+
+![Sealos 操作文档](../images/user-operation-3.zh-cn.png)
+
+#### 1.1.6 高级配置
+
+简易使用，可以直接配置储存卷用于数据持久化，进阶操作请看功能详解
+
+![Sealos 操作文档](../images/user-operation-4.zh-cn.png)
+
+#### 1.1.7 部署应用，访问公网即可
+
+![Sealos 操作文档](../images/user-operation-5.zh-cn.png)
+
+### 1.2 使用 GPU
+
+#### 1.2.1 基础配置
+
+![Sealos 操作文档](../images/user-operation-6.zh-cn.png)
+
+#### 1.2.2 开启访问
+
+![Sealos 操作文档](../images/user-operation-7.zh-cn.png)
+
+#### 1.2.3 高级配置
+
+简易使用，可以直接配置共享内存，进阶操作请看功能详解
+
+![Sealos 操作文档](../images/user-operation-8.zh-cn.png)
+
+#### 1.2.4 部署应用，访问公网即可
+
+ pod和公网地址状态都正常即可直接使用。
+
+![Sealos 操作文档](../images/user-operation-9.zh-cn.png)
+
+## 2. 功能详解
+
+### 2.1 应用详情
+
+#### 2.1.1 应用列表
+
+![Sealos 操作文档](../images/user-operation-10.zh-cn.png)
+
+#### 2.1.2 应用详情
+
+![Sealos 操作文档](../images/user-operation-11.zh-cn.png)
+
+#### 2.1.3 变更
+
+对应用的资源再配置
+
+![Sealos 操作文档](../images/user-operation-12.zh-cn.png)
+
+#### 2.1.4 日志
+
+呈现应用从创建到当前的所有日志，方便查询错误，也可根据时间进行具体的日志查询。
+
+![Sealos 操作文档](../images/user-operation-13.zh-cn.png)
+
+ 
+
+#### 2.1.5 终端
+
+支持终端直接对应用进行操作开发
+
+![Sealos 操作文档](../images/user-operation-14.zh-cn.png)
+
+#### 2.1.6 详情
+
+呈现应用的相关详细信息。
+
+![Sealos 操作文档](../images/user-operation-15.zh-cn.png)
+
+#### 2.1.7 重启
+
+快速重新启动应用
+
+### 2.2 镜像源
+
+类比docker镜像源的使用
+
+#### 2.2.1 公共
+
+公共开放的镜像源，可直接输入镜像源的名字进行拉取
+
+![Sealos 操作文档](../images/user-operation-16.zh-cn.png)
+
+#### 2.2.2 私有
+
+私有的镜像源，根据所需拉取的私有源进行填写配置
+
+![Sealos 操作文档](../images/user-operation-17.zh-cn.png)
+
+### 2.3 部署模式
+
+#### 2.3.1 固定实例
+
+固定实例是，云计算环境中，用户创建并始终保持特定配置和数量的计算资源实例，可手动更改。
+
+可以理解为一个聚会厅，只有20套桌椅，如果来客10人，那便有另外10套桌椅处于闲置的状态；如果来客30人，那便有10个人没有座位。
+
+ 
+
+特点：
+
+* 资源确定性：用户可以明确知道自己拥有的计算资源情况，能够稳定地运行应用程序，不会出现资源突然变化导致的兼容性等问题。
+
+* 易于管理：由于实例的配置和数量相对固定，在进行运维管理时较为简单，不需要频繁应对资源的动态调整。
+
+* 适合稳定负载：对于那些对资源需求相对稳定，不会出现大幅波动的应用场景，如一些传统的企业办公系统、稳定运行的数据库等，固定实例能够很好地满足需求，确保服务的稳定运行。
+
+ 
+
+#### 2.3.2 弹性伸缩
+
+弹性伸缩是，云计算平台根据用户设定的规则和业务实际负载情况，自动增加或减少计算资源实例的过程。它能够使云计算资源根据业务需求的变化进行动态调整，以达到资源的高效利用和成本的优化。
+
+可以理解为一个聚会厅，除了20套桌椅还配备了管理人员，如果来客10人，那便将另外闲置的10套桌椅收回，保证桌椅不会闲置；如果来客30人，那便会在其他聚会厅找来额外的桌椅，保证客人的服务到位。
+
+![Sealos 操作文档](../images/user-operation-18.zh-cn.png)
+
+特点：
+
+* 自动适应负载变化：可以实时监测业务系统的负载指标，如 CPU 使用率、内存使用率。当负载升高超过设定阈值时，自动增加计算实例来分担负载；当负载降低时，自动减少实例数量，避免资源浪费。
+
+* 提高资源利用率：避免了为应对峰值负载而长期预留大量空闲资源的情况，使资源能够在不同的业务需求阶段得到充分利用，从而大大提高了资源的整体利用率，降低了企业的云计算使用成本。
+
+* 增强系统稳定性和可靠性：在业务流量突发增长时，能够及时扩展资源，确保系统不会因为资源不足而出现卡顿、崩溃等问题，保证了系统的稳定性和可靠性，提升了用户体验。
+
+* 常见应用场景：适用于各种业务流量波动较大的场景，如电商平台的促销活动期间、社交媒体平台的热点话题爆发期、在线游戏的节假日高峰期等。
+
+ 
+
+### 2.4 网络配置
+
+#### 2.4.1 **暴露多端口**
+
+在复杂的应用环境中，经常需要应用服务同时暴露多个端口以满足不同的需求。这种需求可能出现在多种场景下：
+
+* 多协议支持：例如，一个应用可能同时支持 HTTP 和 HTTPS 协议，需要暴露 80 和 443 端口。
+
+* 应用的多功能：例如，一个应用可能有一个 Web 服务和一个 Admin 服务，它们分别监听不同的端口。
+
+* 兼容性考虑：为了与旧版本或其他服务兼容，可能需要同时暴露新旧两种接口的端口。
+
+Prometheus 监控和应用服务：如果你的应用既有业务端口，又有一个用于 Prometheus 监控的 /metrics 端口，你可能需要同时暴露两者。
+
+GRPC 和 RESTful 服务并存：如果你的应用同时提供 GRPC 和 RESTful 服务，你可能需要为每种服务类型暴露不同的端口。
+
+Sealos在使用「应用管理 」部署应用时，可以轻松地选择暴露多个端口。在部署应用的过程中，用户只需要点击「网络配置」选项，然后选择「添加端口」，即可实现多端口的配置。
+
+![Sealos 操作文档](../images/user-operation-16.zh-cn.png)
+
+此外，Sealos平台还提供了端口的外网访问功能。一旦暴露到公网，每一个暴露的端口都会被分配一个独立的二级域名，使得用户可以更方便地进行远程访问和管理。
+
+#### 2.4.2 自定义域名
+
+想让您的用户能够享受与您的品牌一致的专属体验？只需要在 [Sealos](https://cloud.sealos.io/) 中为你的项目指定一个自定义域名。
+
+##### 2.4.2.1 部署时接入
+
+如果您在部署应用时接入自定义域名，只需要在部署应用时打开「外网访问」，Sealos 会给您的应用自动分配一个外网域名。
+
+![Sealos 操作文档](../images/user-operation-19.zh-cn.png)
+
+然后需要到您的域名服务商处，添加该域名的 `CNAME` 解析到上面分配的外网域名。以阿里云为例：
+
+![Sealos 操作文档](../images/user-operation.zh-cn.png)
+
+等待解析生效后即可回到 Sealos 中绑定自定义域名，直接点击右侧的「自定义域名」：
+
+![Sealos 操作文档](../images/user-operation-20.zh-cn.png)
+
+在弹出的界面中输入您的自定义域名，然后点击确认即可。
+
+![Sealos 操作文档](../images/user-operation-21.zh-cn.png)
+
+最终点击右上角的「部署」开始部署应用，部署完成后点击外网地址即可通过自定义域名访问应用。
+
+##### 2.4.2.2 部署完成后接入
+
+已经部署完成的应用可以在应用详情页面的右上角点击「变更」，然后参考之前的步骤接入自定义域名即可。
+
+### 2.5 运行命令&命令参数
+
+运行命令是运行应用时进行的命令，命令参数是启动后即执行的操作，如图即在启动后执行了 sleep 10 && /entrypoint.sh db createdb命令。
+
+![Sealos 操作文档](../images/user-operation-17.zh-cn.png)
+
+### 2.6 环境变量
+
+在Sealos中，环境变量扮演着至关重要的角色，它们是管理容器应用配置数据的关键工具。通过使用环境变量，可以为应用提供必要的配置信息，而无需直接修改应用的代码或其镜像，从而提高应用的可维护性和可扩展性。
+
+在「[应用管理](https://sealos.run/docs/guides/applaunchpad/)」界面，环境变量是通过批量输入的方式来定义的。用户可以通过按行输入的方式来定义多个环境变量，其中每个环境变量由键（key）和值（value）组成，两者之间可以使用等号（=）或冒号（:）作为分隔符，「[应用管理](https://sealos.run/docs/guides/applaunchpad/)」会自动清除键（key）中的无效字符，以确保环境变量的正确性和有效性。
+
+![Sealos 操作文档](../images/user-operation-22.zh-cn.png)
+
+**可正常解析的环境变量格式：**
+
+```bash
+host=127.0.0.1
+port:3000
+name: Sealos
+- username=123
+password:123
+## 这一行的注释会被忽略。因为不包含等号（=）或冒号（:）这两种标记字符。
+```
+
+**不可解析的环境变量格式：**
+
+```bash
+host=127.0.0.1 # 这一行会被解析，因为包含了等号（=）或冒号（:）这两种标记字符。这里的注释也会被解析，因为前面已经有等号（=）了。
+## 这是第二行，不会被解析
+```
+
+![Sealos 操作文档](../images/user-operation-23.zh-cn.png)
+
+### 2.7 配置文件
+
+在 [Sealos](https://cloud.sealos.io/) 应用程序中，配置文件的使用非常重要，尤其是当应用程序需要处理大量或复杂的配置信息时。与环境变量相比，配置文件可以提供一种更灵活、更可靠的配置管理方式。环境变量更适合用于传递少量、简单的配置数据。
+
+配置文件的主要优势在于其能够存储和管理复杂的配置数据，这些配置数据可以包含配置文件、命令行参数、环境变量等信息。这些数据可以在应用容器启动时注入到容器中，从而允许你对应用程序的行为进行调整，而无需重新构建镜像。
+
+下面以 Nginx 容器为例，说明如何使用配置文件来调整应用的行为：
+
+* 文件名: 对应 Nginx 容器里的文件，可以参考镜像提供者给出的说明。
+
+* 文件值: 文件对应的内容。如果内容过于复杂，建议在本地编辑完成后，再复制粘贴到相应位置。
+
+* 注意事项：配置文件是挂载单个文件，而不是挂载目录。你需要明确指定要挂载的具体文件，而非仅仅指定一个目录路径。
+
+![Sealos 操作文档](../images/user-operation-18.zh-cn.png)
+
+下面是一个具体值的 deploy.yaml 示例：
+
+ 
+
+```bash
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+        - name: demo-container
+          image: nginx:latest  # 假设使用 Nginx 镜像
+          env:
+            - name: ENV_VAR1
+              value: "production"  # 设置环境变量值为 'production'
+            - name: ENV_VAR2
+              value: "true"  # 设置环境变量值为 'true'
+            - name: ENV_VAR3
+              valueFrom:
+                configMapKeyRef:
+                  name: demo-config  # 通过 ConfigMap 获取配置
+                  key: myConfigValue
+          command: ["/bin/sh", "-c"]
+          args: ["echo Starting Demo App && nginx -g 'daemon off;'"]  # Nginx 启动命令
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config  # 挂载配置文件到 /etc/config 路径
+              readOnly: true
+      volumes:
+        - name: config-volume
+          configMap:
+            name: demo-config  # 配置文件来源于 ConfigMap
+```
+
+***
+
+```bash
+ apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-config
+  namespace: default
+data:
+  myConfigValue: |
+    # 本地配置文件内容
+    server_name: example.com
+    root: /usr/share/nginx/html
+    error_log: /var/log/nginx/error.log
+    access_log: /var/log/nginx/access.log
+```
+
+***
+
+```bash
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-service
+  namespace: default
+spec:
+  selector:
+    app: demo-app
+  ports:
+    - protocol: TCP
+      port: 80  # 服务端口为 80
+      targetPort: 80  # 容器的目标端口也为 80
+  type: ClusterIP  # 使用 ClusterIP 类型的服务
+```
+
+具体值说明:
+
+        1.**Deployment**:
+
+        • image: nginx:latest: 使用最新的 Nginx 镜像。
+
+        • env 中设置了两个环境变量：
+
+        • ENV\_VAR1 设置为 production，表示生产环境。
+
+        • ENV\_VAR2 设置为 true，作为一个布尔值环境变量。
+
+        • command 和 args 设置了容器启动时执行的命令：
+
+        • nginx -g 'daemon off;'：启动 Nginx，daemon off; 表示在前台运行。
+
+        • volumeMounts 和 volumes 设置了从 ConfigMap 中加载配置文件，并挂载到容器的 /etc/config 目录下。
+
+        2.**ConfigMap**:
+
+        • myConfigValue 存储了 Nginx 配置文件的内容，如 server\_name、root、error\_log 和 access\_log 等配置，容器内可以通过环境变量引用这些内容。
+
+        3.**Service**:
+
+        • 创建了一个名为 demo-service 的服务，暴露容器的 80 端口，其他服务可以通过该端口访问 Nginx。
+
+ 
+
+你可以根据需要修改这些值（如镜像、配置、环境变量等）以适应你的具体应用。
+
+### 2.8 本地存储
+
+ 
+
+在Sealos中，容器可以轻松地被创建和销毁。虽然这为部署和管理应用带来了灵活性，但它也带来了数据持久性的挑战。如果应用在容器内部存储数据，那么当容器被销毁时，所有存储在容器内的数据也会丢失。
+
+持久化存储可以确保数据存储在容器外部，即使在容器重启或重新部署的情况下也能保证数据不会丢失。如果你的应用需要保留数据（例如数据库、文件存储系统或任何存储用户数据的服务），一定要使用持久化存储！
+
+假设你要部署一个 Nextcloud，Nextcloud 容器的所有数据都存储在 /var/www/html 这个目录下，因此我们需要将该目录下的数据通过外挂存储进行持久化。
+
+![Sealos 操作文档](../images/user-operation-19.zh-cn.png)
+
+## DevBox
+
+## 1. 快速入门
+
+### 1.1 环境配置
+
+首先确保有适配DevBox的运行软件，此处以VScode为例，[点击前往下载](https://code.visualstudio.com/Download)。
+
+![Sealos 操作文档](../images/user-operation-24.zh-cn.png)
+
+### 1.2 进入DevBox
+
+![Sealos 操作文档](../images/user-operation-25.zh-cn.png)
+
+### 1.3 新建项目
+
+![Sealos 操作文档](../images/user-operation-26.zh-cn.png)
+
+### 1.4 选择模板
+
+![Sealos 操作文档](../images/user-operation-27.zh-cn.png)
+
+### 1.5 配置
+
+一般用于GPU使用需要额外配置存储避免读写过大导致DevBox崩溃。这里以20G为例
+
+![Sealos 操作文档](../images/user-operation-28.zh-cn.png)
+
+共享内存配置，用于模型训练。
+
+![Sealos 操作文档](../images/user-operation-29.zh-cn.png)
+
+### 1.6 启动DevBox 项目
+
+可选各个IDE连接使用，以VS Code为例
+
+![Sealos 操作文档](../images/user-operation-30.zh-cn.png)
+
+### 1.7 等待服务开启
+
+![Sealos 操作文档](../images/user-operation-31.zh-cn.png)
+
+### 1.8 根据当前项目，进行验证环境
+
+当前根据具体的环境进行验证，如有其他不解请联系我们
+
+```text
+bash entrypoint.sh
+```
+
+![Sealos 操作文档](../images/user-operation-32.zh-cn.png)
+
+## 数据库
+
+## 1. 快速入门
+
+### 1.1 进入数据库
+
+![Sealos 操作文档](../images/user-operation-33.zh-cn.png)
+
+### 1.2 创建数据库
+
+![Sealos 操作文档](../images/user-operation-34.zh-cn.png)
+
+### 1.3 配置数据库
+
+可选数据库类型、版本、资源配置、
+
+![Sealos 操作文档](../images/user-operation-35.zh-cn.png)
+
+### 1.4 自动备份配置
+
+![Sealos 操作文档](../images/user-operation-36.zh-cn.png)
+
+### 1.5 可开启公网访问
+
+![Sealos 操作文档](../images/user-operation-37.zh-cn.png)
+
+### 1.6 资源观测
+
+![Sealos 操作文档](../images/user-operation-38.zh-cn.png)
+
+### 1.7 变更历史展示
+
+记录变更的历史
+
+![Sealos 操作文档](../images/user-operation-39.zh-cn.png)
+
+### 1.8 参数配置
+
+![Sealos 操作文档](../images/user-operation-40.zh-cn.png)
+
+### 备份模块
+
+可手动直接触发备份
+
+![Sealos 操作文档](../images/user-operation-41.zh-cn.png)
+
+### 数据导入
+
+支持在线导入数据 以及 文件导入数据
+
+![Sealos 操作文档](../images/user-operation-42.zh-cn.png)
+
+![Sealos 操作文档](../images/user-operation-43.zh-cn.png)
+
+### 1.9 日志分析
+
+![Sealos 操作文档](../images/user-operation-44.zh-cn.png)
+
+### 1.10 备份管理
+
+恢复备份会另外恢复一个数据库，数据以时间节点为准
+
+![Sealos 操作文档](../images/user-operation-45.zh-cn.png)
+
+## 应用商店
+
+## 1. 快速入门
+
+### 1.1 进入应用商店
+
+![Sealos 操作文档](../images/user-operation-46.zh-cn.png)
+
+### 1.2 寻找应用
+
+![Sealos 操作文档](../images/user-operation-47.zh-cn.png)
+
+### 1.3 部署应用
+
+![Sealos 操作文档](../images/user-operation-48.zh-cn.png)
+
+### 1.4 使用应用
+
+![Sealos 操作文档](../images/user-operation-49.zh-cn.png)

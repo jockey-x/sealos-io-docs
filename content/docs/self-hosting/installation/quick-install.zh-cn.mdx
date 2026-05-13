@@ -1,0 +1,236 @@
+---
+title: "Sealos 快速安装指南"
+description: "使用 Sealos 商业版安装包快速部署 Sealos 私有云集群，包括环境准备、配置文件填写、节点扩容、证书信任和集群激活。"
+---
+
+## 前提条件
+
+- Linux 操作系统，推荐麒麟 V10、CentOS 7+ 或 Ubuntu 20.04+。
+- Linux 内核版本 >= 5.10；RHEL 系或 Euler 系内核版本 >= 4.18。
+- 节点间网络互通。
+- 所有操作需要 root 执行权限。
+- 系统中没有 Docker 或其他容器组件。
+- 所有节点的 hostname 不同。
+- 所有节点时间同步。
+
+<Callout type="warn">
+建议使用干净的操作系统进行安装。请勿提前安装 Docker 或其他容器运行时组件，否则可能导致安装失败。
+</Callout>
+
+## 配置要求
+
+| 角色 | 数量 | 配置 |
+| ---- | ---- | ---- |
+| master | 1 | CPU 16C；MEM >= 32G；SSD/NVMe/HDD >= 1.5T（OS 500G；Data 1T） |
+| node | 3 | CPU 32C；MEM >= 128G；SSD/NVMe/HDD >= 3.5T（OS 500G；Data 3T） |
+
+由于 NVMe 硬盘后续无法扩容，HDD 读写速度较慢，推荐使用 SSD 固态硬盘。
+
+## 环境准备
+
+### 修改 hostname
+
+所有节点的 hostname 不能相同，建议使用如下命名规则：
+
+| 角色 | 命名 |
+| ---- | ---- |
+| master | `sealos-master` |
+| node | `sealos-node-0001`、`sealos-node-0002` ... |
+
+在对应节点上执行：
+
+```bash
+hostnamectl set-hostname sealos-master
+```
+
+### 配置免密登录
+
+配置 master 节点到 node 节点之间的免密登录。
+
+### 时间同步
+
+所有节点需要同步时间。根据操作系统版本，选择以下其中一种时间同步方式。
+
+#### systemd-timesyncd
+
+```bash
+sudo timedatectl set-timezone Asia/Shanghai
+sudo systemctl enable --now systemd-timesyncd
+
+sudo tee /etc/systemd/timesyncd.conf >/dev/null <<'EOF'
+[Time]
+NTP=ntp.aliyun.com
+EOF
+
+sudo systemctl restart systemd-timesyncd
+timedatectl show -p NTPSynchronized -p NTP
+timedatectl status
+```
+
+#### chrony
+
+```bash
+sudo bash -c '
+set -euo pipefail
+NTP_SERVER="ntp.aliyun.com"
+CHRONY_CONF="/etc/chrony.conf"
+BACKUP_CONF="/etc/chrony.conf.bak.$(date +%F-%H%M%S)"
+
+timedatectl set-timezone Asia/Shanghai
+command -v chronyd >/dev/null 2>&1 || { echo "未检测到 chronyd，请先安装 chrony"; exit 1; }
+cp -a "${CHRONY_CONF}" "${BACKUP_CONF}"
+
+cat > "${CHRONY_CONF}" <<EOF
+server ${NTP_SERVER} iburst
+
+driftfile /var/lib/chrony/drift
+makestep 1.0 3
+rtcsync
+
+logdir /var/log/chrony
+EOF
+
+systemctl enable --now chronyd
+systemctl restart chronyd
+timedatectl set-ntp true || true
+chronyc -a makestep || true
+timedatectl status || true
+chronyc tracking || true
+chronyc sources -v || true
+'
+```
+
+### 创建 `/data` 目录
+
+```bash
+mkdir /data
+```
+
+### 使用 LVM 给磁盘分区
+
+分区步骤可参考 [安装前磁盘分区指南](/docs/self-hosting/installation/disk-partition-guide)，并根据实际磁盘规划调整容量。
+
+#### master 节点
+
+master 节点需要给 `/data` 分配至少 500G 的空间，具体可按照实际情况分配。
+
+#### node 节点
+
+node 节点需要给 `/data` 分配至少 500G 的空间。
+
+除此之外，还需要创建 VG 用作集群的 PVC LV，容量至少分配 1T，具体可按照实际情况分配。
+
+## 安装
+
+### 解压安装包
+
+将 Sealos 安装包拷贝到 `/data` 目录后解压。以下以 `v5.1.2-rc4` 版本为例：
+
+```bash
+tar -xvf sealos-commercial-v5.1.2-rc4-amd64.tar
+cd sealos-commercial-v5.1.2-rc4
+```
+
+### 编辑配置文件
+
+打开安装包内的 `sealos.env` 配置文件：
+
+```bash
+vi sealos.env
+```
+
+需要配置以下几项：
+
+```bash
+SEALOS_V2_CLOUD_DOMAIN      # 域名
+SEALOS_V2_MASTERS           # Master 节点 IP 和 SSH 端口
+SEALOS_V2_NODES             # Node 节点 IP 和 SSH 端口，使用逗号分隔
+SEALOS_V2_SSH_KEY           # SSH 私钥路径
+SEALOS_V2_CILIUM_INTERFACE  # 网卡配置，根据实际网卡调整
+```
+
+配置示例：
+
+```bash
+SEALOS_V2_CLOUD_DOMAIN="cloud.example.com"
+SEALOS_V2_MASTERS="192.168.1.10:22"
+SEALOS_V2_NODES="192.168.1.11:22,192.168.1.12:22"
+SEALOS_V2_SSH_KEY="/root/.ssh/id_rsa"
+SEALOS_V2_CILIUM_INTERFACE="eth0"
+```
+
+- 测试环境如果没有准备域名，可以使用 `nip.io` 域名，自动 DNS，格式为 `[MASTER IP].nip.io`。
+- 生产环境请使用真实域名并配置 DNS 解析。
+
+### 执行安装
+
+```bash
+./sealos-pro.sh install
+```
+
+等待安装完成，安装过程预计需要 30 到 50 分钟。
+
+### 添加 node 节点
+
+如果前面配置了免密登录，在 master 节点上执行：
+
+```bash
+sealos add --nodes x.x.x.x
+```
+
+其中 `x.x.x.x` 为 node 节点的 IP 地址。如果有多个 node 节点，使用 `,` 分隔：
+
+```bash
+sealos add --nodes x.x.x.x,x.x.x.y,x.x.x.z
+```
+
+如果没有配置免密登录，可以使用 `-p` 参数指定密码：
+
+```bash
+sealos add --nodes x.x.x.x -p your_nodes_password
+```
+
+### 查看 admin 账号密码
+
+执行以下命令：
+
+```bash
+./sealos-pro.sh info
+```
+
+命令会打印该集群的账户表。找到 `Sealos Cloud`，其中的 `PublishAddr` 为 Sealos 访问地址，将其复制到浏览器中打开。
+
+## 信任自签名证书
+
+如果选择使用 `[IP].nip.io` 域名，需要信任自签名证书，否则无法正常显示图标，也无法使用任何应用。
+
+具体操作请参考 [证书导入](/docs/self-hosting/installation/certificate-import)。
+
+## 激活集群
+
+完成证书信任后，刷新页面重新载入。登录后点击进入主页的 `许可证` 应用，查看 `集群信息`，之后请联系 Sealos 团队激活集群。
+
+更完整的操作说明请参考 [激活集群](/docs/self-hosting/reference/install#激活集群)。
+
+## 常见问题
+
+### Q1：域名如何配置 DNS 解析？
+
+假设域名为 `cloud.example.com`，将域名 `cloud.example.com` 的 A 记录解析到 Master 节点 IP 以及 Node 节点 IP。
+
+1. `*.cloud.example.com` 和 `cloud.example.com` 解析公网 IP。
+2. `hub.cloud.example.com` 解析私网 IP。
+
+示例如下，具体 IP 请按照实际 IP 填写：
+
+```text
+cloud.example.com       A  x.x.x.x
+cloud.example.com       A  x.x.x.y
+cloud.example.com       A  x.x.x.z
+*.cloud.example.com     A  x.x.x.x
+*.cloud.example.com     A  x.x.x.y
+*.cloud.example.com     A  x.x.x.z
+hub.cloud.example.com   A  192.168.x.x
+hub.cloud.example.com   A  192.168.x.y
+hub.cloud.example.com   A  192.168.x.z
+```

@@ -1,0 +1,2593 @@
+---
+title: "Sealos 认证与应用 API 文档"
+description: "Sealos 第三方接入常用认证、kubeconfig、应用模板、实例管理、监控、Pod 与日志查询 API 文档。"
+---
+
+## Sealos 认证与模板查询 API 文档
+
+本文档整理了 Sealos 第三方接入中常用的认证接口与模板查询接口，包含：
+
+* 账号密码登录，获取 Global Token
+
+* 使用 Global Token 换取 Region Token
+
+* 获取当前用户 kubeconfig
+
+* 轮转 kubeconfig
+
+* 校验 kubeconfig
+
+* 获取应用模板列表
+
+* 获取应用模板详情
+
+## 1.  基础说明
+
+### 1.1 服务域名
+
+* `desktop` API 基础地址：`https://<sealos-domain>`
+
+* `template` API 基础地址：`https://<template-domain>`
+
+* applaunchpad   API 基础地址：`https://<applaunchpad-domain>`
+
+示例：
+
+* `desktop`：`https://192.168.10.70.nip.io`
+
+* `template`：`https://template.192.168.10.70.nip.io`
+
+* `applaunchpad`：`https://applaunchpad.192.168.10.70.nip.io`
+
+### 1.2 鉴权约定
+
+不同接口使用的鉴权方式不同：
+
+* `desktop` 登录态接口使用 Token 作为 `Authorization` 请求头值，直接传 token 字符串，不需要 `Bearer ` 前缀。
+
+* 后续涉及 `kubeconfig` 鉴权的接口，使用 `encodeURIComponent(kubeconfig)` 之后的结果作为 `Authorization` 请求头值。
+
+* 本文档中的模板查询接口是公开查询接口，不需要鉴权。
+
+## 2. 认证流程
+
+第三方接入建议按照以下顺序获取访问凭证：
+
+1. 调用 `desktop /api/auth/password`，获取 Global Token。
+
+2. 调用 `desktop /api/auth/regionToken`，获取 Region Token、App Token 以及 kubeconfig。
+
+3. 后续：
+
+   * 调用 `desktop` 登录态接口时，`Authorization` 传 Region Token 或 App Token。
+
+   * 调用依赖 kubeconfig 的接口时，`Authorization` 传 `encodeURIComponent(kubeconfig)`。
+
+***
+
+## 3. 获取 Global Token
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/auth/password`
+
+* 服务：`desktop`
+
+### 请求头
+
+```http
+Content-Type: application/json
+```
+
+### 请求体
+
+| 字段         | 类型     | 必填 | 说明                      |
+| ---------- | ------ | -- | ----------------------- |
+| `user`     | string | 是  | 用户名。0326 更新后，该字段没有字符限制。 |
+| `password` | string | 是  | 登录密码。                   |
+
+### password 字段规则
+
+0326 更新后，文档约定如下：
+
+1. 长度至少 8 个字符。
+
+2. 不能全是空白字符，必须至少包含一个非空白字符。
+
+说明：
+
+* 用户未注册时，服务端支持自动注册用户，并初始化可用区信息。
+
+### 请求示例
+
+```bash
+curl -s -X POST 'https://<sealos-domain>/api/auth/password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "user": "admin",
+    "password": "8f4c75cexxxxxxxxxxxxxxxxefa675df"
+  }'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Successfully",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx",
+    "needInit": false
+  }
+}
+```
+
+### 响应字段说明
+
+| 字段              | 类型      | 说明                                                 |
+| --------------- | ------- | -------------------------------------------------- |
+| `data.token`    | string  | Global Token。                                      |
+| `data.needInit` | boolean | 是否需要初始化工作区。当前接入流程中，用户未注册时服务端可自动完成初始化，通常返回 `false`。 |
+
+***
+
+## 4. 使用 Global Token 换取 Region Token
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/auth/regionToken`
+
+* 服务：`desktop`
+
+### 请求头
+
+| 请求头             | 必填 | 说明                                 |
+| --------------- | -- | ---------------------------------- |
+| `Authorization` | 是  | 直接传 Global Token，不需要 `Bearer ` 前缀。 |
+
+### 请求示例
+
+```bash
+curl -s -X POST 'https://<sealos-domain>/api/auth/regionToken' \
+  -H 'Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Successfully",
+  "data": {
+    "kubeconfig": "apiVersion: v1\nclusters:\n- cluster:\n    ...",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.region-token",
+    "appToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.app-token"
+  }
+}
+```
+
+### 响应字段说明
+
+| 字段                | 类型     | 说明                               |
+| ----------------- | ------ | -------------------------------- |
+| `data.kubeconfig` | string | 当前用户在当前工作区下可用的 kubeconfig。       |
+| `data.token`      | string | Region Token，用于 `desktop` 登录态接口。 |
+| `data.appToken`   | string | App Token，部分 `desktop` 接口可使用。    |
+
+### 调用约定
+
+* 后续如果要使用 kubeconfig 作为鉴权信息，请先执行：
+
+```javascript
+const authorization = encodeURIComponent(kubeconfig);
+```
+
+* 然后把编码后的结果放入 `Authorization` 请求头。
+
+***
+
+## 5. 获取用户 kubeconfig
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/auth/getKubeconfig`
+
+* 服务：`desktop`
+
+### 说明
+
+返回当前 Region Token 或 App Token 对应用户在当前工作区下的 kubeconfig。服务端会自动把 kubeconfig 的 namespace 切换到当前工作区。
+
+### 请求头
+
+| 请求头             | 必填 | 说明                                                       |
+| --------------- | -- | -------------------------------------------------------- |
+| `Authorization` | 是  | Region Token 或 App Token，直接传 token 字符串，不需要 `Bearer ` 前缀。 |
+
+### 请求示例
+
+```bash
+curl -s 'https://<sealos-domain>/api/auth/getKubeconfig' \
+  -H 'Authorization: <region-token>'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Successfully",
+  "data": {
+    "kubeconfig": "apiVersion: v1\nclusters:\n- cluster:\n    ..."
+  }
+}
+```
+
+### 失败响应示例
+
+```json
+{
+  "code": 401,
+  "message": "invalid token",
+  "data": null
+}
+```
+
+***
+
+## 6. 轮转 kubeconfig
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/auth/rotateKubeconfig`
+
+* 服务：`desktop`
+
+### 说明
+
+触发当前用户 kubeconfig 轮转，并返回新的 kubeconfig。服务端会轮询用户资源状态，直到拿到新的 kubeconfig 或超时。
+
+### 请求头
+
+| 请求头             | 必填 | 说明                                           |
+| --------------- | -- | -------------------------------------------- |
+| `Authorization` | 是  | Region Token，直接传 token 字符串，不需要 `Bearer ` 前缀。 |
+
+说明：
+
+* 该接口当前只接受 Region Token，不接受 App Token。
+
+### 请求示例
+
+```bash
+curl -s -X POST 'https://<sealos-domain>/api/auth/rotateKubeconfig' \
+  -H 'Authorization: <region-token>'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Kubeconfig rotated successfully",
+  "data": {
+    "kubeconfig": "apiVersion: v1\nclusters:\n- cluster:\n    ..."
+  }
+}
+```
+
+### 失败响应示例
+
+认证失败：
+
+```json
+{
+  "code": 401,
+  "message": "invalid token",
+  "data": null
+}
+```
+
+轮转失败：
+
+```json
+{
+  "code": 500,
+  "message": "Failed to rotate kubeconfig",
+  "data": null
+}
+```
+
+***
+
+## 7. 校验 kubeconfig
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/auth/validateKubeconfig`
+
+* 服务：`desktop`
+
+### 说明
+
+该接口通过读取 kubeconfig 当前上下文中的 namespace 来校验 kubeconfig 是否可用。
+
+校验结果分为三类：
+
+* 参数缺失：返回 `400`
+
+* kubeconfig 无效但请求成功完成：返回 `200`，其中 `data.valid = false`
+
+* 服务端内部异常：返回 `500`
+
+### 请求头
+
+```http
+Content-Type: application/json
+```
+
+### 请求体
+
+| 字段           | 类型     | 必填 | 说明                                  |
+| ------------ | ------ | -- | ----------------------------------- |
+| `kubeconfig` | string | 是  | 原始 kubeconfig 内容，放在请求体中，不需要 URL 编码。 |
+
+### 请求示例
+
+```bash
+curl -s -X POST 'https://<sealos-domain>/api/auth/validateKubeconfig' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "kubeconfig": "apiVersion: v1\nclusters:\n- cluster:\n    ..."
+  }'
+```
+
+### 成功响应
+
+有效：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "valid": true
+  }
+}
+```
+
+无效或已失效：
+
+```json
+{
+  "code": 200,
+  "data": {
+    "valid": false
+  }
+}
+```
+
+### 失败响应示例
+
+缺少参数：
+
+```json
+{
+  "code": 400,
+  "message": "kubeconfig is required",
+  "data": null
+}
+```
+
+***
+
+## 8. 获取应用模板列表（同23，API会返回更多字段内容）
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/v2alpha/templates`
+
+* 服务：`template`
+
+### 说明
+
+返回模板目录列表。该接口为公开查询接口，不需要鉴权。
+
+对应实现位置：
+
+* `providers/template/src/pages/api/v2alpha/templates/index.ts`
+
+### 查询参数
+
+| 参数         | 类型     | 必填 | 说明                              |
+| ---------- | ------ | -- | ------------------------------- |
+| `language` | string | 否  | 国际化语言代码，例如 `en`、`zh`。默认值为 `en`。 |
+
+### 请求示例
+
+```bash
+curl -s 'https://<template-domain>/api/v2alpha/templates?language=zh'
+```
+
+### 成功响应
+
+说明：
+
+* 该接口直接返回数组，不使用 `code/data` 包装。
+
+```json
+[
+  {
+    "name": "perplexica",
+    "resourceType": "template",
+    "readme": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+    "icon": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/refs/heads/master/src/app/favicon.ico",
+    "description": "AI-powered search engine",
+    "gitRepo": "https://github.com/ItzCrazyKns/Perplexica",
+    "category": ["ai"],
+    "args": {
+      "OPENAI_API_KEY": {
+        "description": "OpenAI API Key",
+        "type": "string",
+        "default": "",
+        "required": true
+      }
+    },
+    "deployCount": 156
+  }
+]
+```
+
+### 响应字段说明
+
+| 字段             | 类型        | 说明                  |
+| -------------- | --------- | ------------------- |
+| `name`         | string    | 模板名称。               |
+| `resourceType` | string    | 固定为 `template`。     |
+| `readme`       | string    | README 地址，没有则为空字符串。 |
+| `icon`         | string    | 图标地址，没有则为空字符串。      |
+| `description`  | string    | 模板描述。               |
+| `gitRepo`      | string    | 模板源码仓库地址，没有则为空字符串。  |
+| `category`     | string\[] | 模板分类。               |
+| `args`         | object    | 模板入参定义。             |
+| `deployCount`  | number    | 部署次数统计。             |
+
+`args` 中每个字段的结构如下：
+
+| 字段            | 类型      | 说明                                              |
+| ------------- | ------- | ----------------------------------------------- |
+| `description` | string  | 参数说明。                                           |
+| `type`        | string  | 参数类型，例如 `string`、`number`、`boolean`、`password`。 |
+| `default`     | string  | 默认值。                                            |
+| `required`    | boolean | 是否必填。                                           |
+
+### 响应头
+
+| 响应头             | 说明                                       |
+| --------------- | ---------------------------------------- |
+| `Cache-Control` | 固定为 `public, max-age=300, s-maxage=600`。 |
+| `ETag`          | 形如 `"template-list-en"`。                 |
+| `X-Menu-Keys`   | 热门分类关键词，逗号分隔；仅在有分类数据时返回。                 |
+
+### 失败响应示例
+
+```json
+{
+  "error": {
+    "type": "internal_error",
+    "code": "INTERNAL_ERROR",
+    "message": "Failed to load templates.",
+    "details": "File read error"
+  }
+}
+```
+
+***
+
+## 9. 获取应用启动模板详情
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/v2alpha/templates/{name}`
+
+* 服务：`template`
+
+### 说明
+
+返回指定模板的详情信息，以及根据模板 YAML 计算得到的资源需求信息。该接口为公开查询接口，不需要鉴权。
+
+对应实现位置：
+
+* `providers/template/src/pages/api/v2alpha/templates/[name].ts`
+
+### 路径参数
+
+| 参数     | 类型     | 必填 | 说明                             |
+| ------ | ------ | -- | ------------------------------ |
+| `name` | string | 是  | 模板名称，例如 `perplexica`、`yourls`。 |
+
+### 查询参数
+
+| 参数         | 类型     | 必填 | 说明                              |
+| ---------- | ------ | -- | ------------------------------- |
+| `language` | string | 否  | 国际化语言代码，例如 `en`、`zh`。默认值为 `en`。 |
+
+### 请求示例
+
+```bash
+curl https://template.192.168.10.70.nip.io/api/v2alpha/templates/n8n \
+  --header 'Accept: */*' \
+  --header 'User-Agent: Scalar/2.36.1' \
+  --header 'Authorization: encodekubeconfig'
+```
+
+### 成功响应
+
+说明：
+
+* 该接口直接返回对象，不使用 `code/data` 包装。
+
+```json
+{
+  "name": "n8n",
+  "resourceType": "template",
+  "quota": {
+    "cpu": 0.5,
+    "memory": 0.5,
+    "storage": 1,
+    "nodeport": 0
+  },
+  "readme": "https://raw.githubusercontent.com/labring-actions/templates/main/template/n8n/README.md",
+  "icon": "https://n8n.io/favicon.ico",
+  "description": "n8n is a workflow automation platform that gives technical teams the flexibility of code with the speed of no-code.",
+  "gitRepo": "https://github.com/n8n-io/n8n",
+  "category": [
+    "ai",
+    "low-code"
+  ],
+  "args": {
+    "use_postgresql": {
+      "description": "Use PostgreSQL database for production workloads (recommended for better performance and data persistence)",
+      "type": "boolean",
+      "default": "false",
+      "required": false
+    },
+    "timezone": {
+      "description": "The n8n instance timezone. Important for schedule nodes (such as Cron)",
+      "type": "choice",
+      "default": "America/New_York",
+      "required": false,
+      "options": [
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles",
+        "America/Sao_Paulo",
+        "Europe/London",
+        "Europe/Paris",
+        "Europe/Berlin",
+        "Europe/Moscow",
+        "Asia/Shanghai",
+        "Asia/Tokyo",
+        "Asia/Singapore",
+        "Asia/Dubai",
+        "Asia/Kolkata",
+        "Australia/Sydney",
+        "Pacific/Auckland",
+        "UTC"
+      ]
+    },
+    "use_queue_mode": {
+      "description": "Enable queue mode with Redis and workers for improved scalability and parallel execution (requires PostgreSQL)",
+      "type": "boolean",
+      "default": "false",
+      "required": false
+    }
+  },
+  "deployCount": 24
+}
+```
+
+### quota 字段说明
+
+| 字段         | 类型     | 说明                   |
+| ---------- | ------ | -------------------- |
+| `cpu`      | number | 需要的 CPU 核数，单位为 vCPU。 |
+| `memory`   | number | 需要的内存，单位为 GiB。       |
+| `storage`  | number | 需要的存储，单位为 GiB。       |
+| `nodeport` | number | 需要的 NodePort 数量。     |
+
+### 响应头
+
+| 响应头             | 说明                                             |
+| --------------- | ---------------------------------------------- |
+| `Cache-Control` | 固定为 `public, max-age=300, s-maxage=600`。       |
+| `ETag`          | 形如 `"<name>-<language>"`，例如 `"perplexica-en"`。 |
+
+### 失败响应示例
+
+模板不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Template 'perplexica' not found."
+  }
+}
+```
+
+请求方法错误：
+
+```json
+{
+  "error": {
+    "type": "client_error",
+    "code": "METHOD_NOT_ALLOWED",
+    "message": "Method not allowed. Use GET."
+  }
+}
+```
+
+***
+
+## 10. 从模板目录部署应用到用户集群
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/templates/instances`
+
+* 服务：`template`
+
+### 说明
+
+根据模板目录中的模板，直接向当前用户工作区部署一个实例。
+
+对应实现位置：
+
+* `providers/template/src/pages/api/v2alpha/templates/instances.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 请求头
+
+```http
+Content-Type: application/json
+Authorization: <encodeURIComponent(kubeconfig)>
+```
+
+### 请求体
+
+| 字段         | 类型     | 必填 | 说明                                                                                |
+| ---------- | ------ | -- | --------------------------------------------------------------------------------- |
+| `name`     | string | 是  | 要创建的实例名称。必须满足 Kubernetes DNS subdomain 规则：仅支持小写字母、数字、`-`，且必须以字母或数字开头和结尾，长度不超过 63。 |
+| `template` | string | 是  | 模板名称，来自 `/api/v2alpha/templates` 返回的 `name` 字段。                                   |
+| `args`     | object | 否  | 模板参数键值对。仅当模板参数没有默认值且被标记为必填时，才必须传入。                                                |
+
+### 请求示例
+
+```bash
+curl -s -X POST 'https://<template-domain>/api/v2alpha/templates/instances' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>' \
+  -d '{
+    "name": "my-perplexica",
+    "template": "perplexica",
+    "args": {
+      "OPENAI_API_KEY": "sk-xxxxxxxxxxxxxxxx",
+      "OPENAI_MODEL_NAME": "gpt-4o"
+    }
+  }'
+```
+
+### 成功响应
+
+说明：
+
+* 该接口成功时返回 `201 Created`。
+
+* 响应体直接返回实例对象，不使用 `code/data` 包装。
+
+```json
+{
+  "name": "my-perplexica",
+  "uid": "0f987555-ca63-4d1a-8593-cae8af4a9d74",
+  "resourceType": "instance",
+  "displayName": "",
+  "createdAt": "2026-04-02T10:22:33Z",
+  "args": {
+    "OPENAI_API_KEY": "sk-xxxxxxxxxxxxxxxx",
+    "OPENAI_MODEL_NAME": "gpt-4o"
+  },
+  "resources": [
+    {
+      "name": "my-perplexica",
+      "uid": "84219e3b-2ece-454e-b187-419ddd0841d8",
+      "resourceType": "deployment",
+      "quota": {
+        "cpu": 1,
+        "memory": 2,
+        "storage": 0,
+        "replicas": 1
+      }
+    },
+    {
+      "name": "my-perplexica-service",
+      "uid": "216afca9-a9dd-4a20-8c98-766d4762caaf",
+      "resourceType": "service"
+    }
+  ]
+}
+```
+
+### 响应字段说明
+
+| 字段             | 类型     | 说明                           |
+| -------------- | ------ | ---------------------------- |
+| `name`         | string | 创建后的实例名称。                    |
+| `uid`          | string | Instance 资源的 Kubernetes UID。 |
+| `resourceType` | string | 固定为 `instance`。              |
+| `displayName`  | string | 当前实现中通常返回空字符串。               |
+| `createdAt`    | string | Instance 资源创建时间，ISO 8601 格式。 |
+| `args`         | object | 最终生效的模板参数，包含用户传入值和默认值合并后的结果。 |
+| `resources`    | array  | 创建出的子资源列表，不包含 Instance 本身。   |
+
+`resources` 中每个元素的结构如下：
+
+| 字段             | 类型     | 说明                                                        |
+| -------------- | ------ | --------------------------------------------------------- |
+| `name`         | string | 子资源名称。                                                    |
+| `uid`          | string | 子资源 Kubernetes UID。                                       |
+| `resourceType` | string | 子资源类型，通常为小写 kind，例如 `deployment`、`statefulset`、`service`。 |
+| `quota`        | object | 仅部分资源会返回，例如 `Deployment`、`StatefulSet`、`Cluster`。         |
+
+`quota` 中可能包含以下字段：
+
+| 字段         | 类型     | 说明          |
+| ---------- | ------ | ----------- |
+| `cpu`      | number | CPU 核数。     |
+| `memory`   | number | 内存，单位为 GiB。 |
+| `storage`  | number | 存储，单位为 GiB。 |
+| `replicas` | number | 副本数。        |
+
+### 失败响应示例
+
+缺少 kubeconfig：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Invalid or missing kubeconfig."
+  }
+}
+```
+
+实例名不合法：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_VALUE",
+    "message": "Instance name must start and end with a lowercase letter or number, and can only contain lowercase letters, numbers, and hyphens."
+  }
+}
+```
+
+缺少必填模板参数：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_VALUE",
+    "message": "Missing required parameters: OPENAI_API_KEY."
+  }
+}
+```
+
+实例已存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "ALREADY_EXISTS",
+    "message": "Instance 'my-perplexica' already exists.",
+    "details": "instances.app.sealos.io \"my-perplexica\" already exists"
+  }
+}
+```
+
+***
+
+## 11. 获取应用商店部署实例详情
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/instance/getByName`
+
+* 服务：`template`
+
+### 说明
+
+根据实例名称，获取应用商店部署后的实例详情。
+
+说明：
+
+* 这是 instance 级别详情接口。
+
+* 该接口是旧风格接口，返回结构使用 `code/message/data` 包装。
+
+对应实现位置：
+
+* `providers/template/src/pages/api/instance/getByName.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 查询参数
+
+| 参数             | 类型     | 必填 | 说明                                      |
+| -------------- | ------ | -- | --------------------------------------- |
+| `instanceName` | string | 是  | 实例名称。                                   |
+| `mock`         | string | 否  | 调试参数，传 `true` 时返回 mock 数据。默认值为 `false`。 |
+
+### 请求示例
+
+```bash
+curl -s 'https://<template-domain>/api/instance/getByName?instanceName=my-perplexica' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Success",
+  "data": {
+    "id": "my-perplexica",
+    "createTime": "2026-04-02 18:22",
+    "author": "Sealos",
+    "description": "AI-powered search engine",
+    "gitRepo": "https://github.com/ItzCrazyKns/Perplexica",
+    "icon": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/refs/heads/master/src/app/favicon.ico",
+    "readme": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+    "templateType": "inline",
+    "title": "Perplexica",
+    "url": "https://perplexica.example.com",
+    "displayName": "My Perplexica",
+    "yamlCR": {
+      "apiVersion": "app.sealos.io/v1",
+      "kind": "Instance",
+      "metadata": {
+        "name": "my-perplexica",
+        "creationTimestamp": "2026-04-02T10:22:33Z",
+        "labels": {},
+        "annotations": {}
+      },
+      "spec": {
+        "categories": ["ai"],
+        "gitRepo": "https://github.com/ItzCrazyKns/Perplexica",
+        "templateType": "inline",
+        "author": "Sealos",
+        "title": "Perplexica",
+        "url": "https://perplexica.example.com",
+        "readme": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+        "icon": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/refs/heads/master/src/app/favicon.ico",
+        "description": "AI-powered search engine",
+        "draft": false,
+        "defaults": {},
+        "inputs": {}
+      }
+    }
+  }
+}
+```
+
+### 响应字段说明
+
+| 字段                  | 类型     | 说明                           |
+| ------------------- | ------ | ---------------------------- |
+| `data.id`           | string | 实例名称。                        |
+| `data.createTime`   | string | 创建时间，格式为 `YYYY-MM-DD HH:mm`。 |
+| `data.author`       | string | 模板作者。                        |
+| `data.description`  | string | 模板描述。                        |
+| `data.gitRepo`      | string | 模板源码仓库地址。                    |
+| `data.icon`         | string | 图标地址。                        |
+| `data.readme`       | string | README 地址。                   |
+| `data.templateType` | string | 模板类型。                        |
+| `data.title`        | string | 模板标题。                        |
+| `data.url`          | string | 应用访问地址。                      |
+| `data.displayName`  | string | 实例显示名，来自实例注解或标签。             |
+| `data.yamlCR`       | object | 原始 Instance CR 内容。           |
+
+### 失败响应示例
+
+```json
+{
+  "code": 500,
+  "message": "Server error",
+  "data": null
+}
+```
+
+***
+
+## 12. 启动 Launchpad 应用
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/apps/{name}/start`
+
+* 服务：`applaunchpad`
+
+### 说明
+
+启动一个已暂停的 Launchpad 应用。
+
+说明：
+
+* 这是应用级别启动接口，不是 template 实例接口。
+
+* 如果应用已经处于运行状态，接口会直接返回 `204 No Content`，不报错，具备幂等性。
+
+对应实现位置：
+
+* `providers/applaunchpad/src/pages/api/v2alpha/apps/[name]/start.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 路径参数
+
+| 参数     | 类型     | 必填 | 说明                          |
+| ------ | ------ | -- | --------------------------- |
+| `name` | string | 是  | 应用名称。必须是合法的 Kubernetes 资源名。 |
+
+### 请求示例
+
+```bash
+curl -i -X POST 'https://<applaunchpad-domain>/api/v2alpha/apps/web-api/start' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+说明：
+
+* 成功时返回 `204 No Content`
+
+* 响应体为空
+
+```http
+HTTP/1.1 204 No Content
+```
+
+### 失败响应示例
+
+应用名参数错误：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_PARAMETER",
+    "message": "Application name path parameter is invalid or missing.",
+    "details": [
+      {
+        "field": "name",
+        "message": "name cannot be empty"
+      }
+    ]
+  }
+}
+```
+
+未认证：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Authentication required. Please provide valid credentials in the Authorization header."
+  }
+}
+```
+
+应用不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Application \"web-api\" not found in the current namespace. Please verify the application name."
+  }
+}
+```
+
+启动失败：
+
+```json
+{
+  "error": {
+    "type": "operation_error",
+    "code": "KUBERNETES_ERROR",
+    "message": "Failed to start application \"web-api\". The Kubernetes operation encountered an error.",
+    "details": "deployments.apps \"web-api\" not found"
+  }
+}
+```
+
+***
+
+## 13. 启动数据库
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/databases/{databaseName}/start`
+
+* 服务：`dbprovider`
+
+### 说明
+
+启动一个已暂停或已停止的数据库实例。
+
+说明：
+
+* 这是数据库级别启动接口。
+
+* 如果数据库已经处于运行状态，接口会直接返回 `204 No Content`，不报错，具备幂等性。
+
+* 当前实现中，如果数据库备份开关为关闭状态，启动流程会先将备份开关置为开启，再发起启动操作。
+
+对应实现位置：
+
+* `providers/dbprovider/src/pages/api/v2alpha/databases/[databaseName]/start.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 路径参数
+
+| 参数             | 类型     | 必填 | 说明     |
+| -------------- | ------ | -- | ------ |
+| `databaseName` | string | 是  | 数据库名称。 |
+
+### 请求示例
+
+```bash
+curl -i -X POST 'https://<dbprovider-domain>/api/v2alpha/databases/my-postgres-db/start' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+说明：
+
+* 成功时返回 `204 No Content`
+
+* 响应体为空
+
+```http
+HTTP/1.1 204 No Content
+```
+
+### 失败响应示例
+
+路径参数错误：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_PARAMETER",
+    "message": "Invalid request parameters.",
+    "details": [
+      {
+        "field": "databaseName",
+        "message": "Required"
+      }
+    ]
+  }
+}
+```
+
+未认证：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Unauthorized, please login again."
+  }
+}
+```
+
+数据库不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Database 'my-postgres-db' not found.",
+    "details": "clusters.apps.kubeblocks.io \"my-postgres-db\" not found"
+  }
+}
+```
+
+权限不足：
+
+```json
+{
+  "error": {
+    "type": "authorization_error",
+    "code": "PERMISSION_DENIED",
+    "message": "Insufficient permissions to perform this operation.",
+    "details": "opsrequests.apps.kubeblocks.io is forbidden: User \"system:serviceaccount:ns-abc\" cannot create resource \"opsrequests\" in API group \"apps.kubeblocks.io\""
+  }
+}
+```
+
+启动失败：
+
+```json
+{
+  "error": {
+    "type": "operation_error",
+    "code": "KUBERNETES_ERROR",
+    "message": "A Kubernetes API call failed.",
+    "details": "clusters.apps.kubeblocks.io \"my-postgres-db\": Internal error occurred: etcdserver: request timed out"
+  }
+}
+```
+
+***
+
+## 14. 停止 Launchpad 应用
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/apps/{name}/pause`
+
+* 服务：`applaunchpad`
+
+### 说明
+
+停止一个 Launchpad 应用。
+
+说明：
+
+* 当前接口语义实际为 `pause`。
+
+* 这是应用级别停止接口，不是 template 实例接口。
+
+* 如果应用已经处于暂停状态，接口会直接返回 `204 No Content`，不报错，具备幂等性。
+
+对应实现位置：
+
+* `providers/applaunchpad/src/pages/api/v2alpha/apps/[name]/pause.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 路径参数
+
+| 参数     | 类型     | 必填 | 说明                          |
+| ------ | ------ | -- | --------------------------- |
+| `name` | string | 是  | 应用名称。必须是合法的 Kubernetes 资源名。 |
+
+### 请求示例
+
+```bash
+curl -i -X POST 'https://<applaunchpad-domain>/api/v2alpha/apps/web-api/pause' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+说明：
+
+* 成功时返回 `204 No Content`
+
+* 响应体为空
+
+```http
+HTTP/1.1 204 No Content
+```
+
+### 失败响应示例
+
+应用名参数错误：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_PARAMETER",
+    "message": "Application name path parameter is invalid or missing.",
+    "details": [
+      {
+        "field": "name",
+        "message": "name cannot be empty"
+      }
+    ]
+  }
+}
+```
+
+未认证：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Authentication required. Please provide valid credentials in the Authorization header."
+  }
+}
+```
+
+应用不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Application \"web-api\" not found in the current namespace. Please verify the application name."
+  }
+}
+```
+
+停止失败：
+
+```json
+{
+  "error": {
+    "type": "operation_error",
+    "code": "KUBERNETES_ERROR",
+    "message": "Failed to pause application \"web-api\". The Kubernetes operation encountered an error.",
+    "details": "deployments.apps \"web-api\" not found"
+  }
+}
+```
+
+***
+
+## 15. 停止数据库
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/databases/{databaseName}/pause`
+
+* 服务：`dbprovider`
+
+### 说明
+
+停止一个数据库实例。
+
+说明：
+
+* 当前接口语义实际为 `pause`。
+
+* 这是数据库级别停止接口。
+
+* 成功时返回 `204 No Content`。
+
+* 当前实现中，会尝试删除 `${databaseName}-export` Service，并在数据库启用了备份时先关闭备份，再发起 `Stop` 操作。
+
+对应实现位置：
+
+* `providers/dbprovider/src/pages/api/v2alpha/databases/[databaseName]/pause.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 路径参数
+
+| 参数             | 类型     | 必填 | 说明     |
+| -------------- | ------ | -- | ------ |
+| `databaseName` | string | 是  | 数据库名称。 |
+
+### 请求示例
+
+```bash
+curl -i -X POST 'https://<dbprovider-domain>/api/v2alpha/databases/my-postgres-db/pause' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+说明：
+
+* 成功时返回 `204 No Content`
+
+* 响应体为空
+
+```http
+HTTP/1.1 204 No Content
+```
+
+### 失败响应示例
+
+路径参数错误：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_PARAMETER",
+    "message": "Invalid request parameters.",
+    "details": [
+      {
+        "field": "databaseName",
+        "message": "Required"
+      }
+    ]
+  }
+}
+```
+
+未认证：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Unauthorized, please login again."
+  }
+}
+```
+
+数据库不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Database 'my-postgres-db' not found.",
+    "details": "clusters.apps.kubeblocks.io \"my-postgres-db\" not found"
+  }
+}
+```
+
+冲突：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "CONFLICT",
+    "message": "A conflicting operation is already in progress.",
+    "details": "opsrequests.apps.kubeblocks.io \"my-postgres-db-stop\" already exists"
+  }
+}
+```
+
+停止失败：
+
+```json
+{
+  "error": {
+    "type": "operation_error",
+    "code": "KUBERNETES_ERROR",
+    "message": "A Kubernetes API call failed.",
+    "details": "clusters.apps.kubeblocks.io \"my-postgres-db\": Internal error occurred: etcdserver: request timed out"
+  }
+}
+```
+
+***
+
+## 16. 重启 Launchpad 应用
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/apps/{name}/restart`
+
+* 服务：`applaunchpad`
+
+### 说明
+
+重启一个 Launchpad 应用。
+
+说明：
+
+* 这是应用级别重启接口，不是 template 实例接口。
+
+* 当前实现会先确认应用存在，再发起重启操作。
+
+* 成功时返回 `204 No Content`。
+
+对应实现位置：
+
+* `providers/applaunchpad/src/pages/api/v2alpha/apps/[name]/restart.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 路径参数
+
+| 参数     | 类型     | 必填 | 说明                          |
+| ------ | ------ | -- | --------------------------- |
+| `name` | string | 是  | 应用名称。必须是合法的 Kubernetes 资源名。 |
+
+### 请求示例
+
+```bash
+curl -i -X POST 'https://<applaunchpad-domain>/api/v2alpha/apps/web-api/restart' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+说明：
+
+* 成功时返回 `204 No Content`
+
+* 响应体为空
+
+```http
+HTTP/1.1 204 No Content
+```
+
+### 失败响应示例
+
+应用名参数错误：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_PARAMETER",
+    "message": "Application name path parameter is invalid or missing.",
+    "details": [
+      {
+        "field": "name",
+        "message": "name cannot be empty"
+      }
+    ]
+  }
+}
+```
+
+未认证：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Authentication required. Please provide valid credentials in the Authorization header."
+  }
+}
+```
+
+应用不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Application \"web-api\" not found in the current namespace. Please verify the application name."
+  }
+}
+```
+
+重启失败：
+
+```json
+{
+  "error": {
+    "type": "operation_error",
+    "code": "KUBERNETES_ERROR",
+    "message": "Failed to restart application \"web-api\". The Kubernetes operation encountered an error.",
+    "details": "deployments.apps \"web-api\" not found"
+  }
+}
+```
+
+***
+
+## 17. 重启数据库
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/v2alpha/databases/{databaseName}/restart`
+
+* 服务：`dbprovider`
+
+### 说明
+
+重启一个数据库实例。
+
+说明：
+
+* 这是数据库级别重启接口。
+
+* 成功时返回 `204 No Content`。
+
+* 当前实现会根据数据库元数据识别数据库类型，然后发起 `Restart` 操作。
+
+* 按 OpenAPI 说明，该接口具备幂等性：如果数据库已处于重启过程中，也返回 `204`。
+
+对应实现位置：
+
+* `providers/dbprovider/src/pages/api/v2alpha/databases/[databaseName]/restart.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 路径参数
+
+| 参数             | 类型     | 必填 | 说明     |
+| -------------- | ------ | -- | ------ |
+| `databaseName` | string | 是  | 数据库名称。 |
+
+### 请求示例
+
+```bash
+curl -i -X POST 'https://<dbprovider-domain>/api/v2alpha/databases/my-postgres-db/restart' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+说明：
+
+* 成功时返回 `204 No Content`
+
+* 响应体为空
+
+```http
+HTTP/1.1 204 No Content
+```
+
+### 失败响应示例
+
+路径参数错误：
+
+```json
+{
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_PARAMETER",
+    "message": "Invalid request parameters.",
+    "details": [
+      {
+        "field": "databaseName",
+        "message": "Required"
+      }
+    ]
+  }
+}
+```
+
+未认证：
+
+```json
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "AUTHENTICATION_REQUIRED",
+    "message": "Unauthorized, please login again."
+  }
+}
+```
+
+数据库不存在：
+
+```json
+{
+  "error": {
+    "type": "resource_error",
+    "code": "NOT_FOUND",
+    "message": "Database 'my-postgres-db' not found.",
+    "details": "clusters.apps.kubeblocks.io \"my-postgres-db\" not found"
+  }
+}
+```
+
+权限不足：
+
+```json
+{
+  "error": {
+    "type": "authorization_error",
+    "code": "PERMISSION_DENIED",
+    "message": "Insufficient permissions to perform this operation.",
+    "details": "opsrequests.apps.kubeblocks.io is forbidden: User \"system:serviceaccount:ns-abc\" cannot create resource \"opsrequests\" in API group \"apps.kubeblocks.io\""
+  }
+}
+```
+
+重启失败：
+
+```json
+{
+  "error": {
+    "type": "operation_error",
+    "code": "KUBERNETES_ERROR",
+    "message": "A Kubernetes API call failed.",
+    "details": "clusters.apps.kubeblocks.io \"my-postgres-db\": Internal error occurred: etcdserver: request timed out"
+  }
+}
+```
+
+***
+
+## 18. 删除应用
+
+### 接口
+
+* 路径：`/api/instance/deleteByName`
+
+* 服务：`template`
+
+### 说明
+
+根据实例名称删除应用实例。
+
+对应实现位置：
+
+* `providers/template/src/pages/api/instance/deleteByName.ts`
+
+说明：
+
+* 这是旧风格 instance 级别删除接口。
+
+* 该接口当前通过 query 参数接收 `instanceName`。
+
+* 当前服务端实现未显式限制 HTTP method；现有前端也是通过 query 参数方式调用。
+
+* 对外接入时，建议使用 `DELETE` 请求。
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 查询参数
+
+| 参数             | 类型     | 必填 | 说明        |
+| -------------- | ------ | -- | --------- |
+| `instanceName` | string | 是  | 要删除的实例名称。 |
+
+### 请求示例
+
+```bash
+curl -s -X DELETE 'https://<template-domain>/api/instance/deleteByName?instanceName=my-perplexica' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Instance \"my-perplexica\" deleted successfully",
+  "data": null
+}
+```
+
+### 删除行为说明
+
+当前实现中，接口会先读取对应的 Instance 资源，再执行删除逻辑：
+
+* 如果实例存在，则返回删除成功响应。
+
+* 当实例满足 ownerReferences ready 条件时，服务端会先清理关联 PVC，再删除 Instance 资源本身。
+
+### 失败响应示例
+
+实例不存在：
+
+```json
+{
+  "code": 404,
+  "message": "Instance not found in namespace",
+  "data": null
+}
+```
+
+服务端异常：
+
+```json
+{
+  "code": 500,
+  "message": "Server error",
+  "data": null
+}
+```
+
+***
+
+## 19. 获取应用监控信息
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/monitor/getMonitorData`
+
+* 服务：`applaunchpad`
+
+### 说明
+
+获取应用监控信息。
+
+说明：
+
+* 这是 legacy 接口，不是 v2alpha 接口。
+
+* 返回结构使用旧式 `code/message/data` 包装。
+
+* 当前实现会将监控数据适配成图表序列格式。
+
+* 未传 `start` 和 `end` 时，默认返回最近 1 小时的数据。
+
+对应实现位置：
+
+* `providers/applaunchpad/src/pages/api/monitor/getMonitorData.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 查询参数
+
+| 参数          | 类型     | 必填 | 说明              |
+| ----------- | ------ | -- | --------------- |
+| `queryName` | string | 是  | 应用名称。           |
+| `queryKey`  | string | 是  | 监控指标类型。         |
+| `start`     | number | 否  | 开始时间，毫秒时间戳。     |
+| `end`       | number | 否  | 结束时间，毫秒时间戳。     |
+| `step`      | string | 否  | 查询步长，默认值为 `1m`。 |
+| `pvcName`   | string | 否  | 当查询存储相关指标时可传。   |
+
+### queryKey 可选值
+
+当前实现支持以下指标：
+
+* `cpu`
+
+* `memory`
+
+* `disk`
+
+* `average_cpu`
+
+* `average_memory`
+
+* `storage`
+
+* `gpu`
+
+* `gpu_memory`
+
+### 请求示例
+
+```bash
+curl -s 'https://<applaunchpad-domain>/api/monitor/getMonitorData?queryName=web-api&queryKey=cpu&step=1m' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+带时间范围的示例：
+
+```bash
+curl -s 'https://<applaunchpad-domain>/api/monitor/getMonitorData?queryName=web-api&queryKey=memory&start=1743570000000&end=1743573600000&step=2m' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Success",
+  "data": [
+    {
+      "name": "web-api-6d8b9c7d5f-abcde",
+      "xData": [1743570000, 1743570060, 1743570120],
+      "yData": ["0.12", "0.15", "0.11"]
+    },
+    {
+      "name": "web-api-6d8b9c7d5f-fghij",
+      "xData": [1743570000, 1743570060, 1743570120],
+      "yData": ["0.08", "0.10", "0.09"]
+    }
+  ]
+}
+```
+
+### 响应字段说明
+
+| 字段             | 类型        | 说明                                       |
+| -------------- | --------- | ---------------------------------------- |
+| `data[].name`  | string    | 序列名称。通常是 Pod 名称；`storage` 指标下通常是 PVC 名称。 |
+| `data[].xData` | number\[] | 时间轴数据，单位为秒级 Unix 时间戳。                    |
+| `data[].yData` | string\[] | 指标值数组。当前实现会格式化为字符串。                      |
+
+### 特殊说明
+
+* `gpu` 和 `gpu_memory` 指标优先使用 `podname` 作为序列名称。
+
+* `gpu_memory` 返回前会把字节值转换为 GB，并保留两位小数。
+
+* 当不同序列点位数量不一致时，服务端会自动对齐时间轴，并对缺失值补 `"0"`。
+
+### 失败响应示例
+
+```json
+{
+  "code": 500,
+  "message": "Server error",
+  "data": null
+}
+```
+
+***
+
+## 20. 获取应用 Pod 列表
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/getAppPodsByAppName`
+
+* 服务：`applaunchpad`
+
+### 说明
+
+根据应用名称获取 Pod 列表。
+
+说明：
+
+* 这是 legacy 接口，不是 v2alpha 接口。
+
+* 返回结构使用旧式 `code/message/data` 包装。
+
+* 当前实现通过 Kubernetes label selector `app=<name>` 查询当前工作区下的 Pod。
+
+对应实现位置：
+
+* `providers/applaunchpad/src/pages/api/getAppPodsByAppName.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 查询参数
+
+| 参数     | 类型     | 必填 | 说明    |
+| ------ | ------ | -- | ----- |
+| `name` | string | 是  | 应用名称。 |
+
+### 请求示例
+
+```bash
+curl -s 'https://<applaunchpad-domain>/api/getAppPodsByAppName?name=web-api' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+```
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "message": "Success",
+  "data": [
+    {
+      "podName": "web-api-6d8b9c7d5f-abcde",
+      "status": {
+        "label": "Running",
+        "value": "running",
+        "color": "#00A9A6"
+      },
+      "containerStatus": {
+        "label": "Waiting",
+        "value": "waiting",
+        "color": "#787A90"
+      },
+      "nodeName": "node-1",
+      "ip": "10.244.0.12",
+      "restarts": 0,
+      "age": "10m",
+      "usedCpu": {
+        "name": "",
+        "xData": [0, 0, 0],
+        "yData": ["0", "0", "0"]
+      },
+      "usedMemory": {
+        "name": "",
+        "xData": [0, 0, 0],
+        "yData": ["0", "0", "0"]
+      },
+      "cpu": 500,
+      "memory": 1024
+    }
+  ]
+}
+```
+
+### 响应字段说明
+
+| 字段                       | 类型     | 说明                                     |
+| ------------------------ | ------ | -------------------------------------- |
+| `data[].podName`         | string | Pod 名称。                                |
+| `data[].status`          | object | 当前容器状态映射。                              |
+| `data[].containerStatus` | object | 上一次容器状态映射。                             |
+| `data[].nodeName`        | string | Pod 所在节点名称。                            |
+| `data[].ip`              | string | Pod IP。                                |
+| `data[].restarts`        | number | 重启次数。                                  |
+| `data[].age`             | string | Pod 运行时长的格式化字符串。                       |
+| `data[].usedCpu`         | object | CPU 监控序列占位数据。                          |
+| `data[].usedMemory`      | object | 内存监控序列占位数据。                            |
+| `data[].cpu`             | number | Pod 第一个容器的 CPU limit，单位通常为 millicores。 |
+| `data[].memory`          | number | Pod 第一个容器的内存 limit，单位通常为 Mi。           |
+| `data[].podReason`       | string | 可选，Pod 级异常原因。                          |
+| `data[].podMessage`      | string | 可选，Pod 级异常消息。                          |
+
+`status` / `containerStatus` 结构如下：
+
+| 字段        | 类型     | 说明                                       |
+| --------- | ------ | ---------------------------------------- |
+| `label`   | string | 展示用状态名称。                                 |
+| `value`   | string | 状态值，例如 `running`、`waiting`、`terminated`。 |
+| `color`   | string | 展示色值。                                    |
+| `reason`  | string | 可选，底层状态原因。                               |
+| `message` | string | 可选，底层状态消息。                               |
+
+### 失败响应示例
+
+```json
+{
+  "code": 500,
+  "message": "Server error",
+  "data": null
+}
+```
+
+***
+
+## 21. 检查应用日志
+
+### 接口
+
+* 方法：`POST`
+
+* 路径：`/api/log/queryLogs`
+
+* 服务：`applaunchpad`
+
+### 说明
+
+查询应用日志。
+
+说明：
+
+* 这是 legacy 接口，不是 v2alpha 接口。
+
+* 返回结构使用旧式 `code/message/data` 包装。
+
+* 当前实现会把请求转发到日志服务的 `/queryLogsByParams` 接口。
+
+* 返回的 `data` 是原始文本字符串，不是 JSON 数组。
+
+* 在常见场景下，`data` 往往是按行分隔的 JSON 日志文本，前端会逐行解析。
+
+对应实现位置：
+
+* `providers/applaunchpad/src/pages/api/log/queryLogs.ts`
+
+### 鉴权
+
+该接口要求使用 kubeconfig 鉴权。
+
+`Authorization` 请求头需要传：
+
+```javascript
+encodeURIComponent(kubeconfig);
+```
+
+不需要 `Bearer ` 前缀。
+
+### 请求头
+
+```http
+Content-Type: application/json
+Authorization: <encodeURIComponent(kubeconfig)>
+```
+
+### 请求体
+
+| 字段            | 类型        | 必填 | 说明                                                 |
+| ------------- | --------- | -- | -------------------------------------------------- |
+| `app`         | string    | 是  | 应用名称。                                              |
+| `time`        | string    | 否  | 相对时间范围，默认值为 `30d`。当未传 `startTime` 和 `endTime` 时生效。 |
+| `startTime`   | string    | 否  | 开始时间，通常传 ISO 8601 字符串。                             |
+| `endTime`     | string    | 否  | 结束时间，通常传 ISO 8601 字符串。                             |
+| `limit`       | string    | 否  | 返回条数限制，默认值为 `10`。                                  |
+| `jsonMode`    | string    | 否  | 是否按 JSON 模式查询，默认值为 `true`。                         |
+| `stderrMode`  | string    | 否  | 是否仅查询 stderr，默认值为 `false`。                         |
+| `numberMode`  | string    | 否  | 是否按统计模式查询，默认值为 `false`。                            |
+| `numberLevel` | string    | 否  | 统计粒度。                                              |
+| `pod`         | string\[] | 否  | Pod 名称过滤列表。                                        |
+| `container`   | string\[] | 否  | Container 名称过滤列表。                                  |
+| `keyword`     | string    | 否  | 关键词过滤。                                             |
+| `jsonQuery`   | array     | 否  | JSON 字段过滤条件列表。                                     |
+| `exportMode`  | boolean   | 否  | 导出模式。当前实现中读取了该字段，但未继续传递给下游日志服务。                    |
+
+`jsonQuery` 中每个元素的结构如下：
+
+| 字段      | 类型     | 说明                         |
+| ------- | ------ | -------------------------- |
+| `key`   | string | JSON 字段名。                  |
+| `value` | string | 过滤值。                       |
+| `mode`  | string | 匹配方式，支持 `=`、`!=`、`~`、`!~`。 |
+
+### 请求示例
+
+按时间范围查询：
+
+```bash
+curl -s -X POST 'https://<applaunchpad-domain>/api/log/queryLogs' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>' \
+  -d '{
+    "app": "web-api",
+    "startTime": "2026-04-02T10:00:00.000Z",
+    "endTime": "2026-04-02T11:00:00.000Z",
+    "limit": "100",
+    "jsonMode": "true",
+    "stderrMode": "false",
+    "pod": ["web-api-6d8b9c7d5f-abcde"],
+    "container": ["web-api"],
+    "keyword": "error"
+  }'
+```
+
+按相对时间查询：
+
+```bash
+curl -s -X POST 'https://<applaunchpad-domain>/api/log/queryLogs' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>' \
+  -d '{
+    "app": "web-api",
+    "time": "30d",
+    "limit": "10",
+    "jsonMode": "true"
+  }'
+```
+
+### 成功响应
+
+说明：
+
+* `data` 是字符串。
+
+* 常见情况下，字符串内容是逐行 JSON。
+
+```json
+{
+  "code": 200,
+  "message": "Success",
+  "data": "{\"container\":\"web-api\",\"pod\":\"web-api-6d8b9c7d5f-abcde\",\"logs_total\":\"1\",\"_msg\":\"server started\",\"_time\":\"2026-04-02T10:01:00Z\",\"stream\":\"stdout\"}\n{\"container\":\"web-api\",\"pod\":\"web-api-6d8b9c7d5f-abcde\",\"logs_total\":\"1\",\"_msg\":\"request failed\",\"_time\":\"2026-04-02T10:02:00Z\",\"stream\":\"stderr\"}\n"
+}
+```
+
+### 日志行常见字段
+
+当 `data` 为逐行 JSON 日志时，每一行常见包含以下字段：
+
+| 字段           | 类型     | 说明                           |
+| ------------ | ------ | ---------------------------- |
+| `container`  | string | 容器名。                         |
+| `pod`        | string | Pod 名称。                      |
+| `logs_total` | string | 日志计数。                        |
+| `_msg`       | string | 日志正文。                        |
+| `_time`      | string | 日志时间。                        |
+| `stream`     | string | 日志流，通常为 `stdout` 或 `stderr`。 |
+
+### 失败响应示例
+
+缺少 `app`：
+
+```json
+{
+  "code": 400,
+  "message": "Invalid request parameters",
+  "data": null
+}
+```
+
+请求方法错误：
+
+```json
+{
+  "code": 405,
+  "message": "Unknown error",
+  "data": null
+}
+```
+
+服务端异常：
+
+```json
+{
+  "code": 500,
+  "message": "Server error",
+  "data": null
+}
+```
+
+***
+
+## 22. 获取已部署应用列表
+
+### 接口
+
+* 方法：`GET`
+
+* 路径：`/api/instance/list`
+
+* 服务：`template`
+
+### 说明
+
+  获取当前用户在所属命名空间下，应用商店已经部署的实例列表。
+
+  说明：
+
+* 这是 `instance` 级别列表接口。
+
+* 该接口是旧风格接口，返回结构使用 `code/message/data` 包装。
+
+* 该接口返回的是 Kubernetes 原始 `InstanceList` 结构，不会像 `/api/instance/getByName` 那样做字段适配。
+
+### 鉴权
+
+  该接口要求使用 kubeconfig 鉴权。
+
+  `Authorization` 请求头需要传：`encodeURIComponent(kubeconfig)`不需要 `Bearer` 前缀。
+
+### 查询参数
+
+  无。
+
+### 请求示例
+
+```bash
+curl -s 'https://<template-domain>/api/instance/list' \
+  -H 'Authorization: <encodeURIComponent(kubeconfig)>'
+
+## 成功响应
+
+{
+  "code": 200,
+  "message": "Success",
+  "data": {
+    "apiVersion": "app.sealos.io/v1",
+    "kind": "InstanceList",
+    "metadata": {
+      "continue": ""
+    },
+    "items": [
+      {
+        "apiVersion": "app.sealos.io/v1",
+        "kind": "Instance",
+        "metadata": {
+          "name": "my-perplexica",
+          "creationTimestamp": "2026-04-02T10:22:33Z",
+          "labels": {
+            "cloud.sealos.io/deploy-on-sealos-displayName": "My Perplexica"
+          },
+          "annotations": {}
+        },
+        "spec": {
+          "categories": ["ai"],
+          "gitRepo": "https://github.com/ItzCrazyKns/Perplexica",
+          "templateType": "inline",
+          "author": "Sealos",
+          "title": "Perplexica",
+          "url": "https://perplexica.example.com",
+          "readme": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+          "icon": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/refs/heads/master/src/app/favicon.ico",
+          "description": "AI-powered search engine",
+          "draft": false,
+          "defaults": {},
+          "inputs": {}
+        }
+      }
+    ]
+  }
+}
+
+## 响应字段说明
+
+### 顶层字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| code | number | 业务状态码，成功时为 200。 |
+| message | string | 响应消息，成功时为 Success。 |
+| data | object | 实例列表数据，类型为 InstanceList。 |
+
+### data 字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| data.apiVersion | string | Kubernetes API 版本，通常为 app.sealos.io/v1。 |
+| data.kind | string | 资源列表类型，固定为 InstanceList。 |
+| data.metadata | object | Kubernetes 列表元数据。 |
+| data.metadata.continue | string | 分页游标字段；当前接口未显式支持传入分页参数，通常为空字符串。 |
+| data.items | array | 已部署实例列表，每个元素都是一个原始 Instance CR。 |
+
+### data.items[] 字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| data.items[].apiVersion | string | 资源 API 版本。 |
+| data.items[].kind | string | 资源类型，固定为 Instance。 |
+| data.items[].metadata.name | string | 实例名称。 |
+| data.items[].metadata.creationTimestamp | string | 实例创建时间，ISO 8601 格式。 |
+| data.items[].metadata.labels | object | 实例标签。 |
+| data.items[].metadata.annotations | object | 实例注解。 |
+| data.items[].spec.categories | string[] | 实例所属分类。 |
+| data.items[].spec.gitRepo | string | 模板源码仓库地址。 |
+| data.items[].spec.templateType | string | 模板类型。 |
+| data.items[].spec.author | string | 模板作者。 |
+| data.items[].spec.title | string | 模板标题。 |
+| data.items[].spec.url | string | 应用访问地址。 |
+| data.items[].spec.readme | string | README 地址。 |
+| data.items[].spec.icon | string | 图标地址。 |
+| data.items[].spec.description | string | 模板描述。 |
+| data.items[].spec.draft | boolean | 是否为草稿模板。 |
+| data.items[].spec.defaults | object | 模板默认值配置。 |
+| data.items[].spec.inputs | object | 模板输入项配置。 |
+
+## 补充说明
+
+- 如果调用方只需要“实例卡片信息”，通常还需要在客户端自行做一次字段适配，例如提取：
+    - id <- metadata.name
+    - createTime <- metadata.creationTimestamp
+    - displayName <- metadata.annotations['cloud.sealos.io/deploy-on-sealos-displayName'] 或对应 label
+- 前端当前就是先调用这个接口，再把 data.items 逐项转换为展示结构。
+
+## 失败响应示例
+
+{
+  "code": 500,
+  "message": "Server error",
+  "data": null
+}
+```
+
+## 23 获取应用模板列表
+
+### 接口
+
+* 方法：GET
+
+* 路径：/api/listTemplate
+
+* 服务：template
+
+### 说明
+
+  返回模板目录列表和侧边栏分类关键词。该接口为公开查询接口，不需要鉴权。
+
+### 查询参数
+
+| 参数       | 类型     | 必填 | 说明                          |
+| -------- | ------ | -- | --------------------------- |
+| language | string | 否  | 国际化语言代码，例如 en、zh。不传时不按语言过滤。 |
+
+### 请求示例
+
+```text
+curl -s 'https://<template-domain>/api/listTemplate?language=zh'
+```
+
+### 成功响应
+
+  说明：
+
+* 该接口使用 code/message/data 包装响应。
+
+* data.templates 为模板列表。
+
+* data.menuKeys 为逗号分隔的热门分类关键词。
+
+```json
+{
+"code": 200,
+"message": "Success",
+"data": {
+  "templates": [
+    {
+      "apiVersion": "template.sealos.io/v1beta1",
+      "kind": "Template",
+      "metadata": {
+        "name": "perplexica"
+      },
+      "spec": {
+        "fileName": "perplexica",
+        "filePath": "template/perplexica",
+        "deployCount": 156,
+        "categories": ["ai"],
+        "templateType": "inline",
+        "gitRepo": "https://github.com/ItzCrazyKns/Perplexica",
+        "author": "ItzCrazyKns",
+        "title": "Perplexica",
+        "url": "https://github.com/ItzCrazyKns/Perplexica",
+        "readme": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+        "icon": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/refs/heads/master/src/app/favicon.ico",
+        "description": "AI-powered search engine",
+        "draft": false,
+        "inputs": {
+          "OPENAI_API_KEY": {
+            "description": "OpenAI API Key",
+            "type": "string",
+            "default": "",
+            "required": true
+          }
+        }
+      }
+    }
+  ],
+  "menuKeys": "ai"
+}
+}
+```
+
+## 24 launchpad获取应用详情
+
+### 接口
+
+* 方法：GET
+
+* 路径：/api/getAppByAppName
+
+* 服务：applaunchpad
+
+说明 根据应用名查询应用详情。接口会在当前工作空间对应的命名空间内聚合查询应用相关的 Kubernetes 资源，并返回适配后的应用详情对象。 该接口需要鉴权，请在请求头中传入 Authorization。
+
+### 查询参数
+
+| **参数**  | **类型** | **必填** | **说明**                               |
+| ------- | ------ | ------ | ------------------------------------ |
+| appName | string | 是      | 应用名称。通常对应 Deployment/StatefulSet 名称。 |
+| mock    | string | 否      | 调试参数。传 true 时直接返回 mock 应用详情，不查询集群。   |
+
+### 请求头
+
+| **参数**        | **类型** | **必填** | **说明**                       |
+| ------------- | ------ | ------ | ---------------------------- |
+| Authorization | string | 是      | 鉴权信息。服务端会从该值中解析当前用户可访问的集群配置。 |
+
+### 请求示例
+
+```bash
+curl -s \
+ -H 'Authorization: <authorization>' \
+ 'https://<applaunchpad-domain>/api/getAppByAppName?appName=hello-world'
+```
+
+### 调试示例
+
+```bash
+curl -s \
+ -H 'Authorization: <authorization>' \
+ 'https://<applaunchpad-domain>/api/getAppByAppName?appName=hello-world&mock=true'
+```
+
+### 成功响应
+
+说明：
+
+* 该接口使用 code/message/data 包装响应。
+
+* data 为单个应用详情对象，不是数组。
+
+* 返回内容为适配后的应用模型，包含基础信息、资源配置、网络配置、存储配置、HPA、镜像仓库密钥、原始 K8s YAML 列表等。
+
+```json
+{"code": 200,"message": "Success","data": {"id": "44c550d5-549c-4cca-bd67-d24ad6f38c96","appName": "hello-world","createTime": "2025-05-19 10:50","status": {"label": "Waiting","value": "waiting","color": "#667085","backgroundColor": "#F2F4F7","dotColor": "#667085"},"isPause": false,"kind": "deployment","imageName": "nginx","runCMD": "","cmdParam": "","replicas": 1,"cpu": 200,"memory": 256,"gpu": {"type": "","amount": 0,"manufacturers": ""},"usedCpu": {"name": "","xData": [0, 0, 0],"yData": ["0", "0", "0"]},"usedMemory": {"name": "","xData": [0, 0, 0],"yData": ["0", "0", "0"]},"networks": [{"serviceName": "hello-world","networkName": "hello-world","portName": "http","port": 80,"protocol": "TCP","appProtocol": "HTTP","openPublicDomain": true,"publicDomain": "hello-world","customDomain": "","domain": "example.sealos.run","openNodePort": false}],"envs": [],"hpa": {"use": false,"target": "cpu","value": 50,"minReplicas": 1,"maxReplicas": 5},"configMapList": [],"secret": {"use": false,"username": "","password": "","serverAddress": "docker.io"},"storeList": [],"networkStoreList": [],"volumes": [],"volumeMounts": [],"labels": {"app": "hello-world","cloud.sealos.io/app-deploy-manager": "hello-world"},"source": {"hasSource": false,"sourceName": "","sourceType": "app_store"},"crYamlList": [],"openapi": {"status": {"observedGeneration": 1,"replicas": 1,"availableReplicas": 1,"updatedReplicas": 1,"isPause": false}}
+```
+
+### data 字段说明
+
+| **字段**           | **类型**  | **说明**                               |
+| ---------------- | ------- | ------------------------------------ |
+| id               | string  | 应用 UID。                              |
+| appName          | string  | 应用名称。                                |
+| createTime       | string  | 应用创建时间，格式为 YYYY-MM-DD HH:mm。         |
+| status           | object  | 应用状态对象，包含展示文案和值。                     |
+| isPause          | boolean | 应用是否暂停。                              |
+| kind             | string  | 工作负载类型，可能为 deployment 或 statefulset。 |
+| imageName        | string  | 应用镜像名。                               |
+| runCMD           | string  | 容器启动命令。                              |
+| cmdParam         | string  | 启动参数。                                |
+| replicas         | number  | 副本数。                                 |
+| cpu              | number  | CPU 限额，单位为 m。                        |
+| memory           | number  | 内存限额，单位为 Mi。                         |
+| ephemeralStorage | number  | 临时存储限额，单位为 Gi。可能为空。                  |
+| sharedMemory     | object  | 共享内存配置，包含是否启用和容量。可能为空。               |
+| gpu              | object  | GPU 配置，包含厂商、型号、数量。                   |
+| usedCpu          | object  | CPU 监控数据。                            |
+| usedMemory       | object  | 内存监控数据。                              |
+| networks         | array   | 服务与网络暴露配置。                           |
+| envs             | array   | 环境变量列表。                              |
+| hpa              | object  | 弹性伸缩配置。                              |
+| configMapList    | array   | ConfigMap 挂载配置列表。                    |
+| secret           | object  | 镜像仓库拉取密钥配置。                          |
+| storeList        | array   | 本地/远程存储配置列表。                         |
+| networkStoreList | array   | 网络存储挂载列表。                            |
+| volumes          | array   | 过滤后的原始 Volume 列表。                    |
+| volumeMounts     | array   | 过滤后的原始 VolumeMount 列表。               |
+| labels           | object  | 应用标签。                                |
+| source           | object  | 应用来源信息。                              |
+| crYamlList       | array   | 聚合到的原始 Kubernetes 资源列表。              |
+| openapi.status   | object  | 工作负载状态摘要，如副本状态、是否暂停等。                |
+
+### 接口行为说明
+
+* 服务端会尝试查询以下资源：Deployment、StatefulSet、ConfigMap、Service、Ingress、Secret、HorizontalPodAutoscaler。
+
+* 其中部分资源不存在时会被忽略；但如果核心工作负载不存在，接口会返回错误。
+
+* 返回的 data 为适配后的前端应用详情模型，不是某个单独 Kubernetes 资源的原始返回。
+
+### 失败响应
+
+```json
+{"code": 500,"message": "Server error","error": "appName is empty"}
+```
+
+### 常见失败场景
+
+* 未传 appName
+
+* 未携带或携带了无效的 Authorization
+
+* 指定应用不存在，或核心工作负载解析失败

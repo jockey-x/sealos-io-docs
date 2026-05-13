@@ -1,0 +1,75 @@
+---
+title: "证书导入"
+description: "在 Windows、macOS 与 Linux 系统中导入 Sealos 自签名证书，并验证浏览器和 curl 是否信任证书。"
+---
+
+## 1. windows系统证书导入
+
+使用方法
+
+`https://192.168.10.70.nip.io` 换成实际域名
+
+Auto 模式
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\wincert.ps1 -Url https://192.168.10.70.nip.io/
+```
+
+强制从 HTTP 拉 CA：
+
+`.\wincert.ps1 -Mode http -Url https://192.168.10.70.nip.io/`
+
+强制 TLS 抓服务端证书：
+
+`.\wincert.ps1 -Mode tls -Url https://192.168.10.70.nip.io`
+
+[wincert.ps1](/docs/self-hosting/files/windows.ps1)
+
+***
+
+## 2. Mac 与 Linux 证书导入
+
+[mac-linux.sh](/docs/self-hosting/files/mac-linux.sh)
+
+使用方法
+
+`https://192.168.10.70.nip.io` 换成实际域名
+
+`chmod +x  ./mac-linux.sh`
+
+### auto（默认）：先 HTTP 拉 CA，再 TLS 抓证书
+
+`./mac-linux.sh --mode auto https://192.168.10.70.nip.io/`
+
+### http：强制从 `http://HOST:32000/ssl/ca.crt` 拉取
+
+`./mac-linux.sh --mode http https://192.168.10.70.nip.io/`
+
+### tls：强制用 openssl 握手抓取服务器证书
+
+`./mac-linux.sh --mode tls https://192.168.10.70.nip.io/`
+
+***
+
+## 3. 一键导入
+
+```bash
+curl https://gist.githubusercontent.com/cuisongliu/4fd5533c7674a5e5389b6cd5a9016aee/raw/b7520106dbc362359fe2f8ca7e0d2bf29dbc914b/cert-skip.sh | bash -s -- --mode auto "https://192.168.10.70.nip.io:443"
+```
+
+#### 国内
+
+```bash
+curl https://objectstorageapi.hzh.sealos.run/paxilf30-static/cert.sh  | bash -s -- --mode auto "https://192.168.10.70.nip.io:443"
+```
+
+***
+
+## 4. 验证是否生效（mac）
+
+### 用 curl 验证
+
+`curl -Iv https://192.168.10.70.nip.io/`
+
+如果信任成功，通常不会再看到 `self signed certificate` 相关错误。

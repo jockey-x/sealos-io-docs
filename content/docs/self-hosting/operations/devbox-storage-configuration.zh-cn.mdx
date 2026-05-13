@@ -1,0 +1,30 @@
+---
+title: "DevBox 存储配置"
+description: "配置 DevBox NFS 挂载和模型存储路径，避免覆盖系统关键目录并优化大规模读写场景。"
+---
+
+## DevBox NFS 挂载须知
+
+* NFS 挂载会隐藏原目录内容：当你将 NFS 共享挂载到一个已有文件的目录时，该目录原有的文件会被隐藏（直到卸载 NFS 后才会重新出现）。因此，绝对不能将 NFS 挂载到系统关键目录（如 `/etc`、`/usr` 等）或任何已有重要数据的目录。
+
+* 推荐做法：使用一个专用空目录作为挂载点。例如 `/home/devbox/project/model`。
+
+## 参考样例
+
+### 1. 修改模型存储路径
+
+以 Ollama 为例：
+
+Ollama 默认将模型下载到 `~/.ollama/models`。若要让模型存储在 NFS 上，你需要通过环境变量 `OLLAMA_MODELS` 修改存储路径：
+
+```text
+echo 'export OLLAMA_MODELS="/home/devbox/project/model"' >> ~/.bashrc  
+## 或 ~/.zshrc
+source ~/.bashrc
+```
+
+### 2. 涉及磁盘读写大的操作
+
+例如：模型训练、模型推理。
+
+统一建议将路径指向 NFS 磁盘路径，如`/home/devbox/project/model`。
