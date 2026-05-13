@@ -37,9 +37,7 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 COPY . .
 # Replace relative image paths with CDN URLs
 # RUN chmod +x ./scripts/replace-image-paths.sh && ./scripts/replace-image-paths.sh
-RUN npm install && npm run build
-# Remove development dependencies to reduce final image size
-RUN npm prune --production
+RUN npm ci && npm run build
 
 FROM base AS runner
 # Runtime libraries for canvas and image processing support
@@ -63,17 +61,19 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 WORKDIR /app
 
-# Copy built application and node_modules from builder
+# Copy the standalone Next.js server plus runtime assets that are read from disk.
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/fonts ./fonts
+COPY --from=builder --chown=nextjs:nodejs /app/content ./content
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

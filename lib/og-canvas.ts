@@ -35,6 +35,20 @@ function registerFonts() {
 // Register fonts at module level
 registerFonts();
 
+const imageCache = new Map<string, Promise<any>>();
+
+function loadCachedImage(path: string) {
+  let imagePromise = imageCache.get(path);
+  if (!imagePromise) {
+    imagePromise = loadImage(path).catch((error) => {
+      imageCache.delete(path);
+      throw error;
+    });
+    imageCache.set(path, imagePromise);
+  }
+  return imagePromise;
+}
+
 // Deterministic "random" function based on seed
 function seededRandom(x: number, y: number, seed = 12345) {
   const value = Math.sin(seed + x * 12.9898 + y * 78.233) * 43758.5453;
@@ -344,7 +358,7 @@ async function drawContent(
 ) {
   // Load logo SVG for all types
   const logoPath = join(process.cwd(), 'public', 'sealos.svg');
-  const logo = await loadImage(logoPath);
+  const logo = await loadCachedImage(logoPath);
 
   if (config.showTag === false && config.showTitle === false) {
     // Website-specific layout
@@ -397,7 +411,7 @@ async function drawBlogDocsContent(
 
   // Load and draw the appropriate icon in the pill
   try {
-    const icon = await loadImage(config.iconPath);
+    const icon = await loadCachedImage(config.iconPath);
     const iconSize = tagHeight * 0.6;
     const iconPadding = 15;
 
@@ -486,7 +500,7 @@ async function drawWebsiteContent(
   let fullLogo;
 
   try {
-    fullLogo = await loadImage(fullLogoPath);
+    fullLogo = await loadCachedImage(fullLogoPath);
   } catch (e) {
     console.error('Error loading full logo, falling back to standard logo:', e);
     fullLogo = logo; // Fallback to the standard logo if the full logo can't be loaded

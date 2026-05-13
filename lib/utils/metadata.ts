@@ -1,10 +1,7 @@
-import { blogAuthors, domain, siteConfig } from '@/config/site';
-import { blog } from '@/lib/source';
-import { source } from '@/lib/source';
-import { Metadata } from 'next';
+import { blogAuthors, siteConfig } from '@/config/site';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { i18n, getLanguageSlug } from '@/lib/i18n';
-import { getBlogImage, getPageCategory } from '@/lib/utils/blog-utils';
 
 const ogImageApi = `${siteConfig.url.base}/api/og`;
 
@@ -17,9 +14,31 @@ const siteName = siteConfig.name;
  */
 const CANONICAL_DOMAIN = 'https://sealos.io';
 
+type BlogImageFormat = 'svg-card' | 'svg-header' | 'png-og';
+
+function getMetadataBlogImage(
+  page: { slugs: string[]; locale?: string },
+  format: BlogImageFormat = 'png-og',
+) {
+  const formatMap: Record<BlogImageFormat, string> = {
+    'svg-card': '384x256.svg',
+    'svg-header': '400x210.svg',
+    'png-og': '1200x630@3x.png',
+  };
+
+  const locale = page.locale ?? 'en';
+  const slug = page.slugs[0];
+  const formatString = formatMap[format] ?? formatMap['png-og'];
+
+  return `/api/blog/${encodeURIComponent(locale)}/${encodeURIComponent(
+    slug,
+  )}/thumbnail/${formatString}`;
+}
+
 export async function generateBlogMetadata(props: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  const { blog } = await import('@/lib/source');
   const params = await props.params;
   const page = blog.getPage([params.slug]);
   const isRootPage = !params.slug || params.slug.length === 0;
@@ -34,8 +53,7 @@ export async function generateBlogMetadata(props: {
 
   if (page) {
     url = `${siteConfig.url.base}/blog/${page.slugs.join('/')}`;
-    const category = getPageCategory(page);
-    imageUrl = `${siteConfig.url.base}${getBlogImage(page, category)}`;
+    imageUrl = `${siteConfig.url.base}${getMetadataBlogImage(page)}`;
     docTitle = `${page.data.title} | Sealos Blog`;
     description = page.data.description;
   }
@@ -48,7 +66,9 @@ export async function generateBlogMetadata(props: {
     description: description,
     keywords: keywords,
     authors: page
-      ? page.data.authors.map((author) => ({ name: blogAuthors[author].name }))
+      ? page.data.authors.map((author) => ({
+          name: blogAuthors[author]?.name ?? author,
+        }))
       : [{ name: siteConfig.author }],
     creator: siteConfig.author,
     publisher: siteConfig.author,
@@ -91,7 +111,9 @@ export async function generateBlogMetadata(props: {
       ...(page && {
         publishedTime: page.data.date,
         modifiedTime: page.data.lastModified || page.data.date,
-        authors: page.data.authors.map((author) => blogAuthors[author].name),
+        authors: page.data.authors.map(
+          (author) => blogAuthors[author]?.name ?? author,
+        ),
         section: 'Technology',
         tags: page.data.tags || keywords,
       }),
@@ -114,11 +136,12 @@ export async function generateBlogMetadata(props: {
   };
 }
 
-export function generateDocsMetadata({
+export async function generateDocsMetadata({
   params,
 }: {
   params: { lang: string; slug?: string[] };
-}) {
+}): Promise<Metadata> {
+  const { source } = await import('@/lib/source');
   const page = source.getPage(params.slug, params.lang);
   if (!page) notFound();
 
@@ -127,7 +150,9 @@ export function generateDocsMetadata({
     .join(' > ');
 
   const url = `${siteConfig.url.base}/docs/${page.slugs.join('/')}`;
-  const docsTitle = fullPathTitle ? fullPathTitle.toUpperCase() : 'Sealos Docs';
+  const docsTitle = fullPathTitle
+    ? fullPathTitle.toUpperCase()
+    : 'Sealos Docs';
   const imageUrl = `${ogImageApi}/docs/${encodeURIComponent(docsTitle)}`;
 
   const isRootPage = !params.slug || params.slug.length === 0;
@@ -348,8 +373,9 @@ export function generateProductMetadata(options: {
     ...(options.features || []),
   ];
 
-  const imageApi = `${ogImageApi}/products/`;
-  const imageUrl = `${ogImageApi}/products/${encodeURIComponent(options.productName.toLowerCase().replace(/\s+/g, '-'))}`;
+  const imageUrl = `${ogImageApi}/products/${encodeURIComponent(
+    options.productName.toLowerCase().replace(/\s+/g, '-'),
+  )}`;
 
   // Generate hreflang links
   const hreflangLinks = generateHreflangLinks(options.pathname);
